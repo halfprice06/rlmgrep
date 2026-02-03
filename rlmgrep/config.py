@@ -35,10 +35,25 @@ DEFAULT_CONFIG_TEXT = "\n".join(
 )
 
 
+def _resolve_config_path(path: Path | None = None) -> Path:
+    if path is not None:
+        return path
+    home = Path.home()
+    legacy = home / ".rlmgrep"
+    if legacy.is_file():
+        return legacy
+    return home / ".rlmgrep" / "config.toml"
+
+
 def ensure_default_config(path: Path | None = None) -> tuple[Path | None, str | None]:
-    config_path = path or (Path.home() / ".rlmgrep")
+    config_path = _resolve_config_path(path)
     if config_path.exists():
         return None, None
+    if config_path.parent.name == ".rlmgrep":
+        try:
+            config_path.parent.mkdir(parents=True, exist_ok=True)
+        except Exception as exc:
+            return None, str(exc)
     try:
         config_path.write_text(DEFAULT_CONFIG_TEXT)
     except Exception as exc:  # pragma: no cover - defensive
@@ -47,7 +62,7 @@ def ensure_default_config(path: Path | None = None) -> tuple[Path | None, str | 
 
 
 def load_config(path: Path | None = None) -> tuple[dict[str, Any], list[str]]:
-    config_path = path or (Path.home() / ".rlmgrep")
+    config_path = _resolve_config_path(path)
     if not config_path.exists():
         return {}, []
     if not config_path.is_file():

@@ -95,6 +95,7 @@ def _load_file(
     enable_images: bool = False,
     enable_audio: bool = False,
     audio_transcriber: Callable[[Path], str] | None = None,
+    binary_as_text: bool = False,
 ) -> tuple[str | None, list[int] | None, str | None]:
     """
     Returns (text, page_map, error). If error is not None, text will be None.
@@ -107,14 +108,14 @@ def _load_file(
             text, page_map = _read_pdf(path)
             return text, page_map, None
 
+        data = path.read_bytes()
+        if not _is_binary(data) or binary_as_text:
+            return _normalize_newlines(data.decode("utf-8", errors="replace")), None, None
+
         if (is_image and enable_images) or (is_audio and enable_audio):
             sidecar_text = _read_sidecar(path)
             if sidecar_text is not None:
                 return sidecar_text, None, None
-
-        data = path.read_bytes()
-        if not _is_binary(data):
-            return _normalize_newlines(data.decode("utf-8", errors="replace")), None, None
 
         if markitdown is None:
             return None, None, "binary file"
@@ -246,6 +247,7 @@ def load_files(
     enable_images: bool = False,
     enable_audio: bool = False,
     audio_transcriber: Callable[[Path], str] | None = None,
+    binary_as_text: bool = False,
 ) -> tuple[dict[str, FileRecord], list[str]]:
     records: dict[str, FileRecord] = {}
     warnings: list[str] = []
@@ -267,7 +269,7 @@ def load_files(
                 continue
 
         suffix = fp.suffix.lower()
-        if markitdown is not None:
+        if markitdown is not None and not binary_as_text:
             if enable_images and suffix in IMAGE_EXTS:
                 if not _sidecar_path(fp).is_file():
                     image_convert_count += 1
@@ -281,9 +283,15 @@ def load_files(
             enable_images=enable_images,
             enable_audio=enable_audio,
             audio_transcriber=audio_transcriber,
+            binary_as_text=binary_as_text,
         )
         if err is not None:
-            warnings.append(f"skip {fp}: {err}")
+            if err not in {
+                "binary file",
+                "image conversion disabled",
+                "audio conversion disabled",
+            }:
+                warnings.append(f"skip {fp}: {err}")
             continue
         if text is None:
             warnings.append(f"skip {fp}: unreadable")

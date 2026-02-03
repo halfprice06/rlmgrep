@@ -36,7 +36,7 @@ rlmgrep --init-config
 - Directories are searched recursively.
 - Use `--no-recursive` to ignore directories and only search explicit files.
 - All compatible files are loaded into the RLM directory mapping.
-- Incompatible/failed files are skipped with warnings on stderr.
+- Incompatible files (binary/disabled conversions) are skipped silently by default.
 - Output is grep-shaped: line-oriented, with optional `-n` and context flags.
 - An ASCII file map is always passed to the RLM for orientation.
 - For PDFs, rlmgrep converts to text with page markers and appends `page=N` to output lines.
@@ -44,11 +44,12 @@ rlmgrep --init-config
 - Image/audio inputs are only converted when enabled in `~/.rlmgrep`; otherwise they are skipped.
 - Image/audio conversions are cached as sidecar files next to the source (e.g. `image.png.md`).
 - Use `-g/--glob` and `--type` to filter input files before ingestion.
+- Use `-a/--text` to treat binary files as text (like ripgrep).
 
 ## RLM Configuration
 
-`rlmgrep` uses DSPy RLM. Configure your model with `--model` or `~/.rlmgrep`.
-If `~/.rlmgrep` is missing, a default config is written on first run.
+`rlmgrep` uses DSPy RLM. Configure your model with `--model` or `~/.rlmgrep/config.toml`.
+If the config is missing, a default config is written on first run.
 
 API keys can be provided via `~/.rlmgrep` or the shell environment:
 
@@ -63,7 +64,7 @@ API keys can be provided via `~/.rlmgrep` or the shell environment:
 
 ### Permanent Config
 
-Store permanent settings in `~/.rlmgrep` (TOML). Example:
+Store permanent settings in `~/.rlmgrep/config.toml` (TOML). Example:
 
 ```toml
 model = "openai/gpt-5.2"
