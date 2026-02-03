@@ -2,22 +2,36 @@ from __future__ import annotations
 
 from .ingest import FileRecord
 
+COLOR_RESET = "\x1b[0m"
+COLOR_PATH = "\x1b[35m"
+COLOR_LINE_NO = "\x1b[32m"
+
+
+def _colorize(text: str, color: str, use_color: bool) -> str:
+    if not use_color:
+        return text
+    return f"{color}{text}{COLOR_RESET}"
+
+
+def _format_heading(path: str, use_color: bool) -> str:
+    if not path.startswith((".", "/")):
+        path = f"./{path}"
+    return _colorize(path, COLOR_PATH, use_color)
+
 
 def _format_line(
-    path: str,
     line_no: int,
     text: str,
     is_match: bool,
-    show_filename: bool,
     show_line_numbers: bool,
+    use_color: bool,
+    heading: bool,
 ) -> str:
     delim = ":" if is_match else "-"
-    if show_filename and show_line_numbers:
-        return f"{path}{delim}{line_no}{delim}{text}"
-    if show_filename:
-        return f"{path}{delim}{text}"
     if show_line_numbers:
-        return f"{line_no}{delim}{text}"
+        prefix = _colorize(str(line_no), COLOR_LINE_NO, use_color)
+        sep = "\t" if heading else ""
+        return f"{prefix}{delim}{sep}{text}"
     return text
 
 
@@ -39,18 +53,22 @@ def render_matches(
     files: dict[str, FileRecord],
     matches: dict[str, list[int]],
     show_line_numbers: bool,
-    show_filename: bool,
     before: int,
     after: int,
+    use_color: bool = False,
+    heading: bool = True,
 ) -> list[str]:
     output: list[str] = []
-    multiple_files = len(files) > 1
-    show_filename = show_filename or multiple_files
 
-    for path in sorted(matches.keys()):
+    paths = sorted(matches.keys())
+    for idx, path in enumerate(paths):
         record = files.get(path)
         if record is None:
             continue
+        if heading:
+            if idx > 0:
+                output.append("")
+            output.append(_format_heading(path, use_color))
         lines = record.lines
         page_map = record.page_map
         n_lines = len(lines)
@@ -65,12 +83,12 @@ def render_matches(
                         text = f"{text}\tpage={page_map[line_no - 1]}"
                     output.append(
                         _format_line(
-                            path,
                             line_no,
                             text,
                             True,
-                            show_filename,
                             show_line_numbers,
+                            use_color,
+                            heading,
                         )
                     )
             continue
@@ -90,12 +108,12 @@ def render_matches(
                 is_match = line_no in match_set
                 output.append(
                     _format_line(
-                        path,
                         line_no,
                         text,
                         is_match,
-                        show_filename,
                         show_line_numbers,
+                        use_color,
+                        heading,
                     )
                 )
             if idx < len(merged) - 1:

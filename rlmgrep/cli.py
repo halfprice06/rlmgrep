@@ -72,11 +72,12 @@ def _parse_args(argv: list[str]) -> argparse.Namespace:
     parser.add_argument("pattern", nargs="?", help="Query string (interpreted by RLM)")
     parser.add_argument("paths", nargs="*", help="Files or directories")
 
-    parser.add_argument("-n", dest="line_numbers", action="store_true", help="Show line numbers")
-    parser.add_argument("-H", dest="with_filename", action="store_true", help="Always show filenames")
+    parser.add_argument("-n", dest="line_numbers", action="store_true", help="Show line numbers (default)")
+    parser.add_argument("--no-line-number", dest="line_numbers", action="store_false", help="Hide line numbers")
+    parser.add_argument("-H", dest="with_filename", action="store_true", help="Always show filenames (default)")
     parser.add_argument("-r", dest="recursive", action="store_true", help="Recursive (directories are searched recursively by default)")
     parser.add_argument("--no-recursive", dest="recursive", action="store_false", help="Do not recurse directories")
-    parser.set_defaults(recursive=True)
+    parser.set_defaults(recursive=True, line_numbers=True)
 
     parser.add_argument("-C", dest="context", type=int, default=0, help="Context lines before/after")
     parser.add_argument("-A", dest="after", type=int, default=None, help="Context lines after")
@@ -513,13 +514,16 @@ def main(argv: list[str] | None = None) -> int:
     before = args.before if args.before is not None else args.context
     after = args.after if args.after is not None else args.context
 
+    use_color = sys.stdout.isatty() and not os.getenv("NO_COLOR")
+
     output_lines = render_matches(
         files=files,
         matches=verified,
         show_line_numbers=args.line_numbers,
-        show_filename=args.with_filename,
         before=before,
         after=after,
+        use_color=use_color,
+        heading=True,
     )
 
     if args.answer:

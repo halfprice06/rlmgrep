@@ -24,6 +24,10 @@ class RLMGrepSignature(dspy.Signature):
     find relevant lines. Return all relevant matches you can find, avoid duplicates,
     and only use exact paths from the directory keys.
     Always read the ASCII file map first to orient yourself to the available paths.
+    Do not wrap code in backticks; only raw Python.
+    Do not import pandas or numpy; use built-ins only.
+
+    Files like "photo.jpg.md" or "audio.mp3.md" are LLM descriptions/transcriptions of images/audio that were originally in the directory but have been converted to md to make them searchable by you. 
     """
 
     directory: dict = dspy.InputField(
@@ -52,7 +56,21 @@ class RLMGrepSignature(dspy.Signature):
 
 class RLMGrepAnswerSignature(dspy.Signature):
     """
-    Same as RLMGrepSignature, but also return a narrative answer to the query.
+    You are the search engine for rlmgrep, a grep-shaped CLI for coding agents.
+    Inputs include a directory mapping of files (path -> full text), an ASCII file
+    map, and a user query string. Your output must be grep-printable matches as
+    (path, line) pairs that point to real lines in the provided texts.
+    The query may be natural language or a short pattern; interpret it freely to
+    find relevant lines. Return all relevant matches you can find, avoid duplicates,
+    and only use exact paths from the directory keys.
+    Always read the ASCII file map first to orient yourself to the available paths.
+    Do not wrap code in backticks; only raw Python.
+    Do not import pandas or numpy; use built-ins only.
+
+    In this mode you are also responsible for generating a narrative answer to the query based on the provided files.
+
+    Files like "photo.jpg.md" or "audio.mp3.md" are LLM descriptions/transcriptions of images/audio that were originally in the directory but have been converted to md to make them searchable by you.
+
     """
 
     directory: dict = dspy.InputField(

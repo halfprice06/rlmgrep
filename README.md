@@ -49,8 +49,9 @@ rlmgrep [options] "query" [paths...]
 
 Common options:
 
-- `-n` show line numbers
-- `-H` always show filenames
+- `-n` show line numbers (default)
+- `--no-line-number` hide line numbers
+- `-H` always show filenames (default)
 - `-C N` context lines before/after (grep-style)
 - `-A N` context lines after
 - `-B N` context lines before
@@ -97,10 +98,9 @@ rg -l "token" . | rlmgrep --stdin-files --answer "what does this token control?"
 ## Output contract (stable for agents)
 
 - Matches are written to stdout; warnings go to stderr.
-- Output uses grep-like prefixes:
-  - `path:line:text` for match lines when both `-H` and `-n` are enabled.
-  - `path-line-text` for context lines (note the `-` separator).
-  - If `-H` or `-n` are omitted, their parts are omitted.
+- Output uses rg-style headings by default:
+  - A file header line like `./path/to/file`
+  - Then `line:\ttext` for matches, `line-\ttext` for context lines
 - Line numbers are 1-based.
 - When context ranges are disjoint, a `--` line separates groups.
 - Exit codes:
