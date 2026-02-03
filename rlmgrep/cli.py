@@ -64,6 +64,7 @@ def _parse_args(argv: list[str]) -> argparse.Namespace:
     parser.add_argument("-B", dest="before", type=int, default=None, help="Context lines before")
     parser.add_argument("-m", dest="max_count", type=int, default=None, help="Max matching lines per file")
     parser.add_argument("-a", "--text", dest="binary_as_text", action="store_true", help="Search binary files as text")
+    parser.add_argument("--answer", action="store_true", help="Print a narrative answer before grep output")
 
     parser.add_argument("-g", "--glob", dest="globs", action="append", default=[], help="Include files matching glob (may repeat)")
     parser.add_argument("--type", dest="types", action="append", default=[], help="Include file types (py, js, md, etc.). May repeat")
@@ -416,7 +417,7 @@ def main(argv: list[str] | None = None) -> int:
     directory = {k: v.text for k, v in files.items()}
 
     try:
-        proposed = run_rlm(
+        proposed, answer = run_rlm(
             directory=directory,
             query=args.pattern,
             file_map=file_map,
@@ -424,6 +425,7 @@ def main(argv: list[str] | None = None) -> int:
             max_llm_calls=max_llm_calls,
             verbose=args.rlm_verbose,
             sub_lm=sub_lm,
+            with_answer=args.answer,
         )
     except Exception as exc:  # pragma: no cover - defensive
         _warn(f"RLM failure: {exc}")
@@ -451,6 +453,11 @@ def main(argv: list[str] | None = None) -> int:
         before=before,
         after=after,
     )
+
+    if args.answer:
+        if answer:
+            print(answer.strip())
+        print("--")
 
     for line in output_lines:
         print(line)

@@ -286,11 +286,12 @@ def load_files(
             binary_as_text=binary_as_text,
         )
         if err is not None:
-            if err not in {
+            silent_errors = {
                 "binary file",
                 "image conversion disabled",
                 "audio conversion disabled",
-            }:
+            }
+            if err not in silent_errors and "No converter attempted a conversion" not in err:
                 warnings.append(f"skip {fp}: {err}")
             continue
         if text is None:

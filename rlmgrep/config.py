@@ -38,11 +38,7 @@ DEFAULT_CONFIG_TEXT = "\n".join(
 def _resolve_config_path(path: Path | None = None) -> Path:
     if path is not None:
         return path
-    home = Path.home()
-    legacy = home / ".rlmgrep"
-    if legacy.is_file():
-        return legacy
-    return home / ".rlmgrep" / "config.toml"
+    return Path.home() / ".rlmgrep" / "config.toml"
 
 
 def ensure_default_config(path: Path | None = None) -> tuple[Path | None, str | None]:
