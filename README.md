@@ -1,6 +1,6 @@
 # rlmgrep
 
-Grep-shaped search powered by DSPy RLM. It accepts a natural-language query, scans the files you point at, and prints matching lines in a grep-like format. It is designed to be equally usable by humans (interactive searching) and agents (scriptable output and stable exit codes).
+Grep-shaped search powered by DSPy RLM. It accepts a natural-language query, scans the files you point at, and prints matching lines in a grep-like format.
 
 ## Quickstart
 
