@@ -9,7 +9,13 @@ import dspy
 from . import __version__
 from .config import ensure_default_config, load_config
 from .file_map import build_file_map
-from .ingest import FileRecord, collect_candidates, load_files, resolve_type_exts
+from .ingest import (
+    FileRecord,
+    build_gitignore_spec,
+    collect_candidates,
+    load_files,
+    resolve_type_exts,
+)
 from .rlm import Match, build_lm, run_rlm
 from .render import render_matches
 
@@ -81,6 +87,8 @@ def _parse_args(argv: list[str]) -> argparse.Namespace:
     parser.add_argument("-B", dest="before", type=int, default=None, help="Context lines before")
     parser.add_argument("-m", dest="max_count", type=int, default=None, help="Max matching lines per file")
     parser.add_argument("-a", "--text", dest="binary_as_text", action="store_true", help="Search binary files as text")
+    parser.add_argument("--hidden", action="store_true", help="Include hidden files and directories")
+    parser.add_argument("--no-ignore", dest="no_ignore", action="store_true", help="Do not respect .gitignore")
     parser.add_argument("--answer", action="store_true", help="Print a narrative answer before grep output")
     parser.add_argument("-y", "--yes", action="store_true", help="Skip file count confirmation")
     parser.add_argument(
@@ -137,6 +145,13 @@ def _pick(cli_value, config: dict, key: str, default=None):
     if key in config:
         return config[key]
     return default
+
+
+def _find_git_root(start: Path) -> Path | None:
+    for p in [start, *start.parents]:
+        if (p / ".git").is_dir():
+            return p
+    return None
 
 
 def _env_value(name: str) -> str | None:
@@ -424,12 +439,21 @@ def main(argv: list[str] | None = None) -> int:
         if hard_max is not None and hard_max <= 0:
             hard_max = None
 
+        ignore_spec = None
+        ignore_root = None
+        if not args.no_ignore:
+            ignore_root = _find_git_root(cwd) or cwd
+            ignore_spec = build_gitignore_spec(ignore_root)
+
         candidates = collect_candidates(
             input_paths,
             cwd=cwd,
             recursive=args.recursive,
             include_globs=globs,
             type_exts=type_exts,
+            include_hidden=args.hidden,
+            ignore_spec=ignore_spec,
+            ignore_root=ignore_root,
         )
         candidate_count = len(candidates)
         if hard_max is not None and candidate_count > hard_max:

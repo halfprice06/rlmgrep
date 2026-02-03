@@ -81,6 +81,8 @@ Common options:
 - `-m N` max matching lines per file
 - `-g GLOB` include files matching glob (repeatable, comma-separated)
 - `--type T` include file types (repeatable, comma-separated)
+- `--hidden` include hidden files and directories
+- `--no-ignore` do not respect `.gitignore`
 - `--no-recursive` do not recurse directories
 - `-a`, `--text` treat binary files as text
 - `-y`, `--yes` skip file count confirmation
@@ -113,6 +115,7 @@ rg -l "token" . | rlmgrep --files-from-stdin --answer "What does this token cont
 ## Input selection
 
 - Directories are searched recursively by default. Use `--no-recursive` to stop recursion.
+- Hidden files and `.gitignore` rules are respected by default. Use `--hidden` or `--no-ignore` to include them.
 - `--type` uses built-in type mappings (e.g., `py`, `js`, `md`); unknown values are treated as file extensions.
 - `-g/--glob` matches path globs against normalized paths (forward slashes).
 - Paths are printed relative to the current working directory when possible.

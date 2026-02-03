@@ -2,8 +2,14 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from fnmatch import fnmatch
+import os
 from pathlib import Path, PurePosixPath
-from typing import Iterable, Any, Callable
+from typing import Any, Callable, Iterable
+
+try:
+    import pathspec
+except Exception:  # pragma: no cover - optional at import time
+    pathspec = None
 
 from pypdf import PdfReader
 
@@ -161,6 +167,64 @@ def collect_files(paths: Iterable[str], recursive: bool = True) -> list[Path]:
     return files
 
 
+def build_gitignore_spec(root: Path) -> "pathspec.PathSpec | None":
+    if pathspec is None:
+        return None
+    root = root.resolve()
+    gitignore_paths: list[Path] = []
+    for dirpath, dirnames, filenames in os.walk(root):
+        if ".git" in dirnames:
+            dirnames.remove(".git")
+        if ".gitignore" in filenames:
+            gitignore_paths.append(Path(dirpath) / ".gitignore")
+
+    if not gitignore_paths:
+        return None
+
+    def _sort_key(p: Path) -> tuple[int, str]:
+        try:
+            rel = p.parent.relative_to(root)
+            depth = len(rel.parts)
+            return depth, rel.as_posix()
+        except ValueError:
+            return 0, p.as_posix()
+
+    gitignore_paths.sort(key=_sort_key)
+
+    patterns: list[str] = []
+    for gi in gitignore_paths:
+        try:
+            rel_dir = gi.parent.relative_to(root).as_posix()
+        except ValueError:
+            rel_dir = ""
+        try:
+            raw_lines = gi.read_text(encoding="utf-8", errors="ignore").splitlines()
+        except Exception:
+            continue
+        for raw in raw_lines:
+            line = raw.rstrip("\n")
+            if not line:
+                continue
+            if line.startswith("\\#") or line.startswith("\\!"):
+                line = line[1:]
+            elif line.startswith("#"):
+                continue
+            negated = line.startswith("!")
+            if negated:
+                line = line[1:]
+            if line.startswith("/"):
+                line = line[1:]
+            if rel_dir:
+                line = f"{rel_dir}/{line}"
+            if negated:
+                line = "!" + line
+            patterns.append(line)
+
+    if not patterns:
+        return None
+    return pathspec.PathSpec.from_lines("gitwildmatch", patterns)
+
+
 TYPE_EXTS = {
     "bash": {".bash"},
     "c": {".c", ".h"},
@@ -237,20 +301,45 @@ def _matches_globs(path: str, globs: list[str]) -> bool:
     return False
 
 
+def _is_hidden_path(path: Path) -> bool:
+    return any(part.startswith(".") for part in path.parts if part)
+
+
 def collect_candidates(
     paths: Iterable[str],
     cwd: Path,
     recursive: bool = True,
     include_globs: list[str] | None = None,
     type_exts: set[str] | None = None,
+    include_hidden: bool = False,
+    ignore_spec: "pathspec.PathSpec | None" = None,
+    ignore_root: Path | None = None,
 ) -> list[Path]:
     files = collect_files(paths, recursive=recursive)
+    explicit_files: set[Path] = set()
+    for raw in paths:
+        p = Path(raw)
+        if p.exists() and p.is_file():
+            explicit_files.add(p.resolve())
     candidates: list[Path] = []
     for fp in files:
+        fp_resolved = fp.resolve()
+        is_explicit = fp_resolved in explicit_files
+        if not include_hidden and not is_explicit and _is_hidden_path(fp):
+            continue
+
         try:
             key = fp.relative_to(cwd).as_posix()
         except ValueError:
             key = fp.as_posix()
+
+        if ignore_spec is not None and ignore_root is not None and not is_explicit:
+            try:
+                rel = fp.relative_to(ignore_root).as_posix()
+            except ValueError:
+                rel = None
+            if rel and ignore_spec.match_file(rel):
+                continue
 
         if include_globs and not _matches_globs(key, include_globs):
             continue
