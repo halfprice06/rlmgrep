@@ -347,6 +347,12 @@ def collect_candidates(
 ) -> list[Path]:
     files = collect_files(paths, recursive=recursive)
     explicit_files: set[Path] = set()
+    ignore_root_resolved: Path | None = None
+    if ignore_root is not None:
+        try:
+            ignore_root_resolved = ignore_root.resolve()
+        except Exception:
+            ignore_root_resolved = ignore_root
     for raw in paths:
         p = Path(raw)
         if p.exists() and p.is_file():
@@ -363,9 +369,9 @@ def collect_candidates(
         except ValueError:
             key = fp.as_posix()
 
-        if ignore_spec is not None and ignore_root is not None and not is_explicit:
+        if ignore_spec is not None and ignore_root_resolved is not None and not is_explicit:
             try:
-                rel = fp.relative_to(ignore_root).as_posix()
+                rel = fp_resolved.relative_to(ignore_root_resolved).as_posix()
             except ValueError:
                 rel = None
             if rel and ignore_spec.match_file(rel):
