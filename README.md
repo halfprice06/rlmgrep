@@ -10,9 +10,19 @@ uv tool install rlmgrep
 # uv tool install git+https://github.com/halfprice06/rlmgrep.git
 
 export OPENAI_API_KEY=...  # or set keys in ~/.rlmgrep
+```
+
+```sh
 rlmgrep --answer "What does this repo do and where are the entry points?" .
+```
+
+![Quickstart answer mode](docs/images/quickstart-answer.png)
+
+```sh
 rlmgrep -C 2 "Where is retry/backoff configured and what are the defaults?" .
 ```
+
+![Quickstart context mode](docs/images/quickstart-context.png)
 
 ## Requirements
 
