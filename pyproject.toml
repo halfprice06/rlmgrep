@@ -1,0 +1,25 @@
+[project]
+name = "rlmgrep"
+version = "0.1.0"
+description = "Grep-shaped CLI search powered by DSPy RLM"
+readme = "README.md"
+requires-python = ">=3.10"
+authors = [{ name = "rlmgrep" }]
+license = { text = "MIT" }
+dependencies = [
+  "dspy>=3.1.1",
+  "markitdown[all]>=0.1.0",
+  "pypdf>=4.0.0",
+  "tomli>=2.0.0; python_version < '3.11'",
+]
+
+[project.scripts]
+rlmgrep = "rlmgrep.cli:main"
+
+[build-system]
+requires = ["setuptools>=68", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools.packages.find]
+where = ["."]
+include = ["rlmgrep*"]
