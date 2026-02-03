@@ -220,16 +220,32 @@ def build_ignore_spec(
                 escaped = True
             if not escaped and line.startswith("#"):
                 continue
+
             negated = False
             if not escaped and line.startswith("!"):
                 negated = True
                 line = line[1:]
             if not line:
                 continue
+
+            anchored = False
             if line.startswith("/"):
+                anchored = True
                 line = line[1:]
+            if not line:
+                continue
+
             if rel_dir:
-                line = f"{rel_dir}/{line}"
+                if anchored:
+                    line = f"{rel_dir}/{line}"
+                elif "/" in line:
+                    line = f"{rel_dir}/{line}"
+                else:
+                    line = f"{rel_dir}/**/{line}"
+            else:
+                if anchored:
+                    line = f"/{line}"
+
             if negated:
                 line = "!" + line
             patterns.append(line)
