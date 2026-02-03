@@ -60,6 +60,7 @@ Common options:
 - `--no-recursive` do not recurse directories
 - `-a`, `--text` treat binary files as text
 - `-y`, `--yes` skip file count confirmation
+- `--stdin-files` treat stdin as newline-delimited file paths
 - `--model`, `--sub-model` override model names
 - `--api-key`, `--api-base`, `--model-type` override provider settings
 - `--max-iterations`, `--max-llm-calls` cap RLM search effort
@@ -79,6 +80,9 @@ rlmgrep "error handling" -g "**/*.py" -g "**/*.md" .
 
 # Read from stdin (only when no paths are provided)
 cat README.md | rlmgrep "install"
+
+# Use rg/grep to find candidate files, then rlmgrep over that list
+rg -l "token" . | rlmgrep --stdin-files --answer "what does this token control?"
 ```
 
 ## Input selection
@@ -105,6 +109,18 @@ cat README.md | rlmgrep "install"
   - `2` = usage/config/error
 
 Agent tip: use `-n -H` and no context for parse-friendly output, then key off exit codes.
+
+## Regex-style queries (best effort)
+
+rlmgrep can interpret traditional regex-style patterns inside a natural-language prompt. The RLM may use Python (including `re`) in its internal REPL to approximate regex logic, but it is **not guaranteed** to behave exactly like `grep`/`rg`.
+
+Example (best-effort regex semantics + extra context):
+
+```sh
+rlmgrep -n "Find Python functions that look like `def test_\\w+` and are marked as slow or flaky in nearby comments." .
+```
+
+If you need strict, deterministic regex behavior, use `rg`/`grep`.
 
 ## Configuration
 

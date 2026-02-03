@@ -3,10 +3,7 @@ from __future__ import annotations
 from pathlib import Path
 from typing import Any
 
-try:  # Python 3.11+
-    import tomllib as _tomllib  # type: ignore
-except Exception:  # pragma: no cover - fallback
-    import tomli as _tomllib  # type: ignore
+import tomllib
 
 
 DEFAULT_CONFIG_TEXT = "\n".join(
@@ -67,7 +64,7 @@ def load_config(path: Path | None = None) -> tuple[dict[str, Any], list[str]]:
         return {}, [f"config path is not a file: {config_path}"]
 
     try:
-        data = _tomllib.loads(config_path.read_text())
+        data = tomllib.loads(config_path.read_text())
     except Exception as exc:  # pragma: no cover - defensive
         return {}, [f"failed to read config {config_path}: {exc}"]
 

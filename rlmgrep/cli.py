@@ -83,6 +83,11 @@ def _parse_args(argv: list[str]) -> argparse.Namespace:
     parser.add_argument("-a", "--text", dest="binary_as_text", action="store_true", help="Search binary files as text")
     parser.add_argument("--answer", action="store_true", help="Print a narrative answer before grep output")
     parser.add_argument("-y", "--yes", action="store_true", help="Skip file count confirmation")
+    parser.add_argument(
+        "--stdin-files",
+        action="store_true",
+        help="Treat stdin as newline-delimited file paths",
+    )
 
     parser.add_argument("-g", "--glob", dest="globs", action="append", default=[], help="Include files matching glob (may repeat)")
     parser.add_argument("--type", dest="types", action="append", default=[], help="Include file types (py, js, md, etc.). May repeat")
@@ -336,11 +341,27 @@ def main(argv: list[str] | None = None) -> int:
     for w in md_warnings:
         _warn(w)
 
-    if not args.paths:
+    input_paths: list[str] | None = None
+    stdin_text: str | None = None
+    if args.paths:
+        input_paths = list(args.paths)
+    elif args.stdin_files:
         if sys.stdin.isatty():
             _warn("no input paths and stdin is empty")
             return 2
-        text = sys.stdin.read()
+        raw = sys.stdin.read()
+        input_paths = [line.strip() for line in raw.splitlines() if line.strip()]
+        if not input_paths:
+            _warn("stdin contained no file paths")
+            return 2
+    else:
+        if sys.stdin.isatty():
+            _warn("no input paths and stdin is empty")
+            return 2
+        stdin_text = sys.stdin.read()
+
+    if input_paths is None:
+        text = stdin_text or ""
         files = {
             "<stdin>": FileRecord(path="<stdin>", text=text, lines=text.split("\n"))
         }
@@ -356,7 +377,7 @@ def main(argv: list[str] | None = None) -> int:
             hard_max = None
 
         candidates = collect_candidates(
-            args.paths,
+            input_paths,
             cwd=cwd,
             recursive=args.recursive,
             include_globs=globs,

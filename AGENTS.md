@@ -10,9 +10,16 @@
 
 ## Build, Test, and Development Commands
 - Install in editable mode: `pip install -e .` (fast local iteration).
-- Alternative tool install: `uv tool install .`.
+- Alternative tool install: `uv tool install .` (local path) or `uv tool install --python 3.11 rlmgrep` (PyPI).
 - Run locally: `rlmgrep "query" .` (example: `rlmgrep -n -C 2 "token parsing" rlmgrep/`).
 - No automated test command is configured yet.
+
+## Packaging & PyPI Release
+- Version lives in `pyproject.toml`. Bump before publishing.
+- Build: `python -m build`
+- Publish: `python -m twine upload dist/*`
+- Ensure `README.md` reflects the latest CLI/config behavior before publish.
+
 
 ## Coding Style & Naming Conventions
 - Python only; use 4-space indentation and follow PEP 8.

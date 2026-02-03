@@ -1,6 +1,6 @@
 [project]
 name = "rlmgrep"
-version = "0.1.1"
+version = "0.1.2"
 description = "Grep-shaped CLI search powered by DSPy RLM"
 readme = "README.md"
 requires-python = ">=3.11"
