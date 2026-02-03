@@ -23,13 +23,10 @@ def _format_line(
     line_no: int,
     text: str,
     is_match: bool,
-    show_line_numbers: bool,
     use_color: bool,
     heading: bool,
 ) -> str:
     delim = ":" if is_match else "-"
-    if not show_line_numbers:
-        return text
     prefix = _colorize(str(line_no), COLOR_LINE_NO, use_color)
     sep = "\t" if heading else ""
     return f"{prefix}{delim}{sep}{text}"
@@ -52,7 +49,6 @@ def _merge_ranges(ranges: list[tuple[int, int]]) -> list[tuple[int, int]]:
 def render_matches(
     files: dict[str, FileRecord],
     matches: dict[str, list[int]],
-    show_line_numbers: bool,
     before: int,
     after: int,
     use_color: bool = False,
@@ -86,7 +82,6 @@ def render_matches(
                             line_no,
                             text,
                             True,
-                            show_line_numbers,
                             use_color,
                             heading,
                         )
@@ -111,7 +106,6 @@ def render_matches(
                         line_no,
                         text,
                         is_match,
-                        show_line_numbers,
                         use_color,
                         heading,
                     )

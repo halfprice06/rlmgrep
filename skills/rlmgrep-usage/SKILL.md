@@ -29,7 +29,7 @@ Use `rlmgrep` when:
 Examples:
 
 ```sh
-rlmgrep -n -C 2 "where is api key parsed" .
+rlmgrep -C 2 "where is api key parsed" .
 rlmgrep "retry logic for 429" --type py .
 rlmgrep "find config defaults" -g "**/*.toml" -g "**/*.py" .
 rg -l "token" . | rlmgrep --files-from-stdin --answer "what does this token control?"
@@ -47,7 +47,7 @@ Notes:
 Example (best-effort regex semantics + extra context):
 
 ```sh
-rlmgrep -n "Find JavaScript files with functions matching `function\\s+use[A-Z]\\w+` and mention hooks." .
+rlmgrep "Find JavaScript files with functions matching `function\\s+use[A-Z]\\w+` and mention hooks." .
 ```
 
 ## Optional Workflow: rg → rlmgrep

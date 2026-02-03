@@ -72,10 +72,9 @@ def _parse_args(argv: list[str]) -> argparse.Namespace:
     parser.add_argument("pattern", nargs="?", help="Query string (interpreted by RLM)")
     parser.add_argument("paths", nargs="*", help="Files or directories")
 
-    parser.add_argument("-n", dest="line_numbers", action="store_true", help="Show line numbers (default)")
     parser.add_argument("-r", dest="recursive", action="store_true", help="Recursive (directories are searched recursively by default)")
     parser.add_argument("--no-recursive", dest="recursive", action="store_false", help="Do not recurse directories")
-    parser.set_defaults(recursive=True, line_numbers=True)
+    parser.set_defaults(recursive=True)
 
     parser.add_argument("-C", dest="context", type=int, default=0, help="Context lines before/after")
     parser.add_argument("-A", dest="after", type=int, default=None, help="Context lines after")
@@ -565,7 +564,6 @@ def main(argv: list[str] | None = None) -> int:
     output_lines = render_matches(
         files=files,
         matches=verified,
-        show_line_numbers=args.line_numbers,
         before=before,
         after=after,
         use_color=use_color,

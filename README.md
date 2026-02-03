@@ -11,7 +11,7 @@ uv tool install rlmgrep
 
 export OPENAI_API_KEY=...  # or set keys in ~/.rlmgrep
 rlmgrep --answer "What does this repo do and where are the entry points?" .
-rlmgrep -n -C 2 "Where is retry/backoff configured and what are the defaults?" .
+rlmgrep -C 2 "Where is retry/backoff configured and what are the defaults?" .
 ```
 
 ## Requirements
@@ -85,7 +85,7 @@ Examples:
 
 ```sh
 # Natural-language query over a repo
-rlmgrep -n -C 2 "Where is retry/backoff configured and what are the defaults?" .
+rlmgrep -C 2 "Where is retry/backoff configured and what are the defaults?" .
 
 # Restrict to Python files
 rlmgrep "Where do we parse JWTs and enforce expiration?" --type py .
@@ -115,7 +115,7 @@ rg -l "token" . | rlmgrep --files-from-stdin --answer "What does this token cont
 - Output uses rg-style headings by default:
   - A file header line like `./path/to/file`
   - Then `line:\ttext` for matches, `line-\ttext` for context lines
-- Line numbers are 1-based.
+- Line numbers are always included and are 1-based.
 - When context ranges are disjoint, a `--` line separates groups.
 - Exit codes:
   - `0` = at least one match
@@ -130,7 +130,7 @@ rlmgrep can interpret traditional regex-style patterns inside a natural-language
 Example (best-effort regex semantics + extra context):
 
 ```sh
-rlmgrep -n "Find Python functions that look like `def test_\\w+` and are marked as slow or flaky in nearby comments." .
+rlmgrep "Find Python functions that look like `def test_\\w+` and are marked as slow or flaky in nearby comments." .
 ```
 
 If you need strict, deterministic regex behavior, use `rg`/`grep`.

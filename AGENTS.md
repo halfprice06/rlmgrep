@@ -11,7 +11,7 @@
 ## Build, Test, and Development Commands
 - Install in editable mode: `pip install -e .` (fast local iteration).
 - Alternative tool install: `uv tool install .` (local path) or `uv tool install --python 3.11 rlmgrep` (PyPI).
-- Run locally: `rlmgrep "query" .` (example: `rlmgrep -n -C 2 "token parsing" rlmgrep/`).
+- Run locally: `rlmgrep "query" .` (example: `rlmgrep -C 2 "token parsing" rlmgrep/`).
 - No automated test command is configured yet.
 
 ## Packaging & PyPI Release
