@@ -50,6 +50,36 @@ class RLMGrepSignature(dspy.Signature):
     )
 
 
+class RLMGrepAnswerSignature(dspy.Signature):
+    """
+    Same as RLMGrepSignature, but also return a narrative answer to the query.
+    """
+
+    directory: dict = dspy.InputField(
+        desc=(
+            "Mapping from relative path to full file text. Keys are the only valid paths. "
+            "Use this as the ground-truth corpus."
+        )
+    )
+    file_map: str = dspy.InputField(
+        desc=("ASCII tree of directory keys for orientation. Read this first.")
+    )
+    query: str = dspy.InputField(
+        desc="User query to find relevant lines. Interpret freely."
+    )
+
+    answer: str = dspy.OutputField(
+        desc="Narrative answer to the query based on the provided files."
+    )
+    matches: list[Match] = dspy.OutputField(
+        desc=(
+            "Return match objects with keys: path, line. "
+            "path must exactly match a key in directory. line is 1-based. "
+            "Return all matches; do not truncate."
+        )
+    )
+
+
 def build_lm(
     model: str | None,
     api_base: str | None,
@@ -89,7 +119,8 @@ def run_rlm(
     max_llm_calls: int | None,
     verbose: bool,
     sub_lm: dspy.LM | None = None,
-) -> list[Match]:
+    with_answer: bool = False,
+) -> tuple[list[Match], str | None]:
     kwargs: dict[str, Any] = {"verbose": verbose}
     if max_iterations is not None:
         kwargs["max_iterations"] = max_iterations
@@ -100,7 +131,8 @@ def run_rlm(
     workdir.mkdir(parents=True, exist_ok=True)
     interpreter = RLMGrepInterpreter(workdir=workdir)
 
-    rlm = dspy.RLM(RLMGrepSignature, sub_lm=sub_lm, interpreter=interpreter, **kwargs)
+    signature = RLMGrepAnswerSignature if with_answer else RLMGrepSignature
+    rlm = dspy.RLM(signature, sub_lm=sub_lm, interpreter=interpreter, **kwargs)
 
     try:
         result = rlm(
@@ -109,4 +141,6 @@ def run_rlm(
     finally:
         interpreter.shutdown()
 
-    return list(getattr(result, "matches", []))
+    matches = list(getattr(result, "matches", []))
+    answer = getattr(result, "answer", None) if with_answer else None
+    return matches, answer
