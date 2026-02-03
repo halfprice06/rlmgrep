@@ -6,6 +6,7 @@ import sys
 from pathlib import Path
 
 import dspy
+from . import __version__
 from .config import ensure_default_config, load_config
 from .file_map import build_file_map
 from .ingest import FileRecord, collect_candidates, load_files, resolve_type_exts
@@ -67,6 +68,7 @@ def _parse_args(argv: list[str]) -> argparse.Namespace:
         prog="rlmgrep",
         description="Grep-shaped CLI search powered by DSPy RLM.",
     )
+    parser.add_argument("--version", action="version", version=f"rlmgrep {__version__}")
     parser.add_argument("pattern", nargs="?", help="Query string (interpreted by RLM)")
     parser.add_argument("paths", nargs="*", help="Files or directories")
 
