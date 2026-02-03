@@ -5,9 +5,9 @@ Grep-shaped search powered by DSPy RLM. It accepts a natural-language query, sca
 ## Quickstart
 
 ```sh
-uv tool install --python 3.11 rlmgrep
+uv tool install rlmgrep
 # or from GitHub:
-# uv tool install --python 3.11 git+https://github.com/halfprice06/rlmgrep.git
+# uv tool install git+https://github.com/halfprice06/rlmgrep.git
 
 export OPENAI_API_KEY=...  # or set keys in ~/.rlmgrep
 rlmgrep "where are API keys read" rlmgrep/
