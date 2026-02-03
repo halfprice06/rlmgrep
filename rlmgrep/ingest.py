@@ -6,10 +6,7 @@ import os
 from pathlib import Path, PurePosixPath
 from typing import Any, Callable, Iterable
 
-try:
-    import pathspec
-except Exception:  # pragma: no cover - optional at import time
-    pathspec = None
+import pathspec
 
 from pypdf import PdfReader
 
