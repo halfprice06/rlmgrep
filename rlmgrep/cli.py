@@ -1,13 +1,26 @@
 from __future__ import annotations
 
 import argparse
+import logging
 import os
-import sys
 import shutil
 import subprocess
+import sys
 from pathlib import Path
 
 import dspy
+from rich import box
+from rich.console import Console
+from rich.panel import Panel
+from rich.progress import (
+    BarColumn,
+    Progress,
+    SpinnerColumn,
+    TaskProgressColumn,
+    TextColumn,
+    TimeElapsedColumn,
+)
+from rich.text import Text
 from . import __version__
 from .config import ensure_default_config, load_config
 from .file_map import build_file_map
@@ -24,6 +37,80 @@ from .render import render_matches
 
 def _warn(msg: str) -> None:
     print(f"rlmgrep: {msg}", file=sys.stderr)
+
+
+def _console() -> Console:
+    use_color = sys.stderr.isatty() and not os.getenv("NO_COLOR")
+    return Console(stderr=True, force_terminal=use_color, color_system="auto")
+
+
+class _RLMIterationHandler(logging.Handler):
+    def __init__(self, console: Console) -> None:
+        super().__init__(level=logging.INFO)
+        self._console = console
+        self._title: str | None = None
+        self._lines: list[str] = []
+
+    def emit(self, record: logging.LogRecord) -> None:
+        msg = record.getMessage()
+        if "RLM iteration" in msg:
+            self.flush_panel()
+            self._title = "RLM iteration"
+            self._lines = [msg]
+            return
+        if self._title is None:
+            self._title = "RLM output"
+        self._lines.append(msg)
+
+    def flush_panel(self) -> None:
+        if self._title is None:
+            return
+        body = "\n".join(self._lines).strip() or " "
+        self._console.print(
+            Panel(
+                Text(body),
+                title=self._title,
+                border_style="blue",
+                box=box.ROUNDED,
+            )
+        )
+        self._title = None
+        self._lines = []
+
+
+def _setup_verbose_logging(console: Console) -> _RLMIterationHandler:
+    logger = logging.getLogger("dspy.predict.rlm")
+    handler = _RLMIterationHandler(console)
+    logger.addHandler(handler)
+    logger.setLevel(logging.INFO)
+    logger.propagate = False
+    return handler
+
+
+def _print_answer(console: Console, answer: str) -> None:
+    text = Text(answer.strip())
+    panel = Panel(
+        text,
+        title="Answer",
+        border_style="cyan",
+        box=box.ROUNDED,
+    )
+    console.print(panel)
+
+
+def _print_matches(console: Console, lines: list[str], use_color: bool) -> None:
+    body = "\n".join(lines).strip()
+    if not body:
+        body = "No matches"
+    text = Text.from_ansi(body) if use_color else Text(body)
+    console.print(
+        Panel(
+            text,
+            title="Matches",
+            border_style="cyan",
+            box=box.ROUNDED,
+        )
+    )
 
 
 def _confirm_over_limit(count: int, threshold: int) -> bool:
@@ -450,6 +537,9 @@ def main(argv: list[str] | None = None) -> int:
     for w in config_warnings:
         _warn(w)
 
+    console = _console()
+    progress = None
+
     # Resolve input corpus.
     globs = _split_list(args.globs)
     type_names = _split_list(args.types)
@@ -511,7 +601,29 @@ def main(argv: list[str] | None = None) -> int:
             extra_ignores.extend(_global_ignore_paths(ignore_root))
             ignore_spec = build_ignore_spec(ignore_root, extra_paths=extra_ignores)
 
-        candidates = collect_candidates(
+        scan_task = None
+        load_task = None
+        scan_count = 0
+        if sys.stderr.isatty():
+            progress = Progress(
+                SpinnerColumn(),
+                TextColumn("{task.description}"),
+                BarColumn(),
+                TaskProgressColumn(),
+                TimeElapsedColumn(),
+                console=console,
+                transient=False,
+            )
+            progress.start()
+            scan_task = progress.add_task("Scanning files", total=None)
+
+        def _scan_update(count: int) -> None:
+            nonlocal scan_count
+            scan_count = count
+            if progress is not None and scan_task is not None:
+                progress.update(scan_task, completed=count)
+
+        candidates, scanned = collect_candidates(
             input_paths,
             cwd=cwd,
             recursive=args.recursive,
@@ -520,12 +632,21 @@ def main(argv: list[str] | None = None) -> int:
             include_hidden=args.hidden,
             ignore_spec=ignore_spec,
             ignore_root=ignore_root,
+            scan_progress=_scan_update if progress is not None else None,
         )
+        if progress is not None and scan_task is not None:
+            progress.update(
+                scan_task,
+                total=scanned or scan_count,
+                completed=scanned or scan_count,
+            )
         candidate_count = len(candidates)
         if hard_max is not None and candidate_count > hard_max:
             _warn(
                 f"{candidate_count} files to load (over {hard_max}); aborting"
             )
+        if progress is not None:
+            progress.stop()
             return 2
         if (
             warn_threshold is not None
@@ -533,7 +654,19 @@ def main(argv: list[str] | None = None) -> int:
             and not args.yes
         ):
             if not _confirm_over_limit(candidate_count, warn_threshold):
+                if progress is not None:
+                    progress.stop()
                 return 2
+        if progress is not None:
+            load_task = progress.add_task(
+                "Loading files",
+                total=candidate_count,
+                completed=0,
+            )
+
+        def _load_update(done: int, total: int) -> None:
+            if progress is not None and load_task is not None:
+                progress.update(load_task, completed=done, total=total)
 
         files, warnings = load_files(
             candidates,
@@ -543,7 +676,10 @@ def main(argv: list[str] | None = None) -> int:
             enable_audio=md_enable_audio,
             audio_transcriber=audio_transcriber,
             binary_as_text=args.binary_as_text,
+            progress=_load_update if progress is not None else None,
         )
+        if progress is not None:
+            progress.stop()
 
     for w in warnings:
         _warn(w)
@@ -620,6 +756,10 @@ def main(argv: list[str] | None = None) -> int:
 
     directory = {k: v.text for k, v in files.items()}
 
+    verbose_handler = None
+    if args.verbose:
+        verbose_handler = _setup_verbose_logging(console)
+
     try:
         proposed, answer = run_rlm(
             directory=directory,
@@ -634,6 +774,9 @@ def main(argv: list[str] | None = None) -> int:
     except Exception as exc:  # pragma: no cover - defensive
         _warn(f"RLM failure: {exc}")
         return 2
+    finally:
+        if verbose_handler is not None:
+            verbose_handler.flush_panel()
 
     verified, dropped = verify_matches(proposed, files)
     if dropped:
@@ -660,13 +803,15 @@ def main(argv: list[str] | None = None) -> int:
         heading=True,
     )
 
-    if args.answer:
-        if answer:
-            print(answer.strip())
-        print("--")
+    stdout_console = Console(force_terminal=use_color, color_system="auto")
+    if args.answer and answer:
+        _print_answer(console, answer)
 
-    for line in output_lines:
-        print(line)
+    if use_color and sys.stdout.isatty():
+        _print_matches(stdout_console, output_lines, use_color=use_color)
+    else:
+        for line in output_lines:
+            print(line)
 
     total_matches = sum(len(lines) for lines in verified.values())
     if total_matches > 0:

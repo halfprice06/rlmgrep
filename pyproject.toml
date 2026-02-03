@@ -1,6 +1,6 @@
 [project]
 name = "rlmgrep"
-version = "0.1.18"
+version = "0.1.24"
 description = "Grep-shaped CLI search powered by DSPy RLM"
 readme = "README.md"
 requires-python = ">=3.11"
@@ -11,6 +11,7 @@ dependencies = [
   "markitdown[all]>=0.1.4",
   "pathspec>=0.12.1",
   "pypdf>=4.0.0",
+  "rich>=13.7.0",
 ]
 
 [project.scripts]

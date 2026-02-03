@@ -147,20 +147,33 @@ def _load_file(
         return None, None, str(exc)
 
 
-def collect_files(paths: Iterable[str], recursive: bool = True) -> list[Path]:
+def collect_files(
+    paths: Iterable[str],
+    recursive: bool = True,
+    progress: Callable[[int], None] | None = None,
+) -> list[Path]:
     files: list[Path] = []
+    scanned = 0
     for raw in paths:
         p = Path(raw)
         if not p.exists():
             continue
         if p.is_dir():
             if recursive:
-                files.extend(fp for fp in p.rglob("*") if fp.is_file())
+                for fp in p.rglob("*"):
+                    if fp.is_file():
+                        files.append(fp)
+                        scanned += 1
+                        if progress is not None:
+                            progress(scanned)
             else:
                 # No recursion: ignore directories.
                 continue
         elif p.is_file():
             files.append(p)
+            scanned += 1
+            if progress is not None:
+                progress(scanned)
     return files
 
 
@@ -344,8 +357,10 @@ def collect_candidates(
     include_hidden: bool = False,
     ignore_spec: "pathspec.PathSpec | None" = None,
     ignore_root: Path | None = None,
-) -> list[Path]:
-    files = collect_files(paths, recursive=recursive)
+    scan_progress: Callable[[int], None] | None = None,
+) -> tuple[list[Path], int]:
+    files = collect_files(paths, recursive=recursive, progress=scan_progress)
+    scanned = len(files)
     explicit_files: set[Path] = set()
     ignore_root_resolved: Path | None = None
     if ignore_root is not None:
@@ -384,7 +399,7 @@ def collect_candidates(
             continue
 
         candidates.append(fp)
-    return candidates
+    return candidates, scanned
 
 
 def load_files(
@@ -395,13 +410,16 @@ def load_files(
     enable_audio: bool = False,
     audio_transcriber: Callable[[Path], str] | None = None,
     binary_as_text: bool = False,
+    progress: Callable[[int, int], None] | None = None,
 ) -> tuple[dict[str, FileRecord], list[str]]:
     records: dict[str, FileRecord] = {}
     warnings: list[str] = []
     image_convert_count = 0
     audio_convert_count = 0
 
-    for fp in candidates:
+    candidate_list = list(candidates)
+    total = len(candidate_list)
+    for idx, fp in enumerate(candidate_list, start=1):
         try:
             key = fp.relative_to(cwd).as_posix()
         except ValueError:
@@ -432,15 +450,21 @@ def load_files(
             }
             if err not in silent_errors and "No converter attempted a conversion" not in err:
                 warnings.append(f"skip {fp}: {err}")
+            if progress is not None:
+                progress(idx, total)
             continue
         if text is None:
             warnings.append(f"skip {fp}: unreadable")
+            if progress is not None:
+                progress(idx, total)
             continue
 
         lines = text.split("\n")
         if page_map is not None and len(page_map) != len(lines):
             page_map = None
         records[key] = FileRecord(path=key, text=text, lines=lines, page_map=page_map)
+        if progress is not None:
+            progress(idx, total)
 
     if image_convert_count > 5:
         warnings.append(
