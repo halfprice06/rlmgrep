@@ -58,7 +58,8 @@ Common options:
 - `--no-recursive` do not recurse directories
 - `-a`, `--text` treat binary files as text
 - `-y`, `--yes` skip file count confirmation
-- `--stdin-files` treat stdin as newline-delimited file paths
+- `--files-from-stdin` treat stdin as newline-delimited file paths (e.g., `rg -l`)
+- `--files-from-rg` alias for `--files-from-stdin`
 - `--model`, `--sub-model` override model names
 - `--api-key`, `--api-base`, `--model-type` override provider settings
 - `--max-iterations`, `--max-llm-calls` cap RLM search effort
@@ -167,6 +168,14 @@ If more than one provider key is set and the model does not make the provider ob
 - Images and audio are converted via `markitdown` when enabled in config. Image conversion supports `openai`, `anthropic`, and `gemini` providers; audio conversion currently supports `openai` only.
 - Converted image/audio text is cached in sidecar files named `<original>.<ext>.md` next to the original file and reused on subsequent runs.
 - Use `-a/--text` to force binary files to be read as text (UTF-8 with replacement).
+
+## Skill (Anthropic-style)
+
+A ready-to-copy skill lives in:
+
+- `skills/rlmgrep-usage/SKILL.md`
+
+Install it by copying the folder into your agent’s skills directory (for example, `~/.claude/skills/rlmgrep-usage/`), then invoke it as `$rlmgrep-usage` in prompts. This is a lightweight, documentation-only skill meant to guide when to use rlmgrep vs `rg`/`grep`.
 
 ## Development
 
