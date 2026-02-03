@@ -49,7 +49,6 @@ rlmgrep [options] "query" [paths...]
 
 Common options:
 
-- `-n` show line numbers (default)
 - `-C N` context lines before/after (grep-style)
 - `-A N` context lines after
 - `-B N` context lines before
