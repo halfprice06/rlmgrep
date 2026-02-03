@@ -10,7 +10,8 @@ uv tool install rlmgrep
 # uv tool install git+https://github.com/halfprice06/rlmgrep.git
 
 export OPENAI_API_KEY=...  # or set keys in ~/.rlmgrep
-rlmgrep "where are API keys read" rlmgrep/
+rlmgrep --answer "What does this repo do and where are the entry points?" .
+rlmgrep -n -C 2 "Where is retry/backoff configured and what are the defaults?" .
 ```
 
 ## Requirements
@@ -63,6 +64,7 @@ rlmgrep [options] "query" [paths...]
 
 Common options:
 
+- `--answer` return a narrative answer before the grep output
 - `-C N` context lines before/after (grep-style)
 - `-A N` context lines after
 - `-B N` context lines before
