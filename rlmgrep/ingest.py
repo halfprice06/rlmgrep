@@ -164,18 +164,28 @@ def collect_files(paths: Iterable[str], recursive: bool = True) -> list[Path]:
     return files
 
 
-def build_gitignore_spec(root: Path) -> "pathspec.PathSpec | None":
-    if pathspec is None:
-        return None
+IGNORE_FILENAMES = {".gitignore", ".ignore", ".rgignore"}
+
+
+def build_ignore_spec(
+    root: Path, extra_paths: Iterable[Path] | None = None
+) -> "pathspec.PathSpec | None":
     root = root.resolve()
-    gitignore_paths: list[Path] = []
+    ignore_paths: list[Path] = []
+    extra_paths = list(extra_paths or [])
+
     for dirpath, dirnames, filenames in os.walk(root):
         if ".git" in dirnames:
             dirnames.remove(".git")
-        if ".gitignore" in filenames:
-            gitignore_paths.append(Path(dirpath) / ".gitignore")
+        for name in filenames:
+            if name in IGNORE_FILENAMES:
+                ignore_paths.append(Path(dirpath) / name)
 
-    if not gitignore_paths:
+    for extra in extra_paths:
+        if extra.exists():
+            ignore_paths.append(extra)
+
+    if not ignore_paths:
         return None
 
     def _sort_key(p: Path) -> tuple[int, str]:
@@ -186,10 +196,10 @@ def build_gitignore_spec(root: Path) -> "pathspec.PathSpec | None":
         except ValueError:
             return 0, p.as_posix()
 
-    gitignore_paths.sort(key=_sort_key)
+    ignore_paths.sort(key=_sort_key)
 
     patterns: list[str] = []
-    for gi in gitignore_paths:
+    for gi in ignore_paths:
         try:
             rel_dir = gi.parent.relative_to(root).as_posix()
         except ValueError:
@@ -202,13 +212,18 @@ def build_gitignore_spec(root: Path) -> "pathspec.PathSpec | None":
             line = raw.rstrip("\n")
             if not line:
                 continue
+            escaped = False
             if line.startswith("\\#") or line.startswith("\\!"):
                 line = line[1:]
-            elif line.startswith("#"):
+                escaped = True
+            if not escaped and line.startswith("#"):
                 continue
-            negated = line.startswith("!")
-            if negated:
+            negated = False
+            if not escaped and line.startswith("!"):
+                negated = True
                 line = line[1:]
+            if not line:
+                continue
             if line.startswith("/"):
                 line = line[1:]
             if rel_dir:

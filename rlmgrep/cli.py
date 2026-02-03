@@ -11,7 +11,7 @@ from .config import ensure_default_config, load_config
 from .file_map import build_file_map
 from .ingest import (
     FileRecord,
-    build_gitignore_spec,
+    build_ignore_spec,
     collect_candidates,
     load_files,
     resolve_type_exts,
@@ -88,7 +88,12 @@ def _parse_args(argv: list[str]) -> argparse.Namespace:
     parser.add_argument("-m", dest="max_count", type=int, default=None, help="Max matching lines per file")
     parser.add_argument("-a", "--text", dest="binary_as_text", action="store_true", help="Search binary files as text")
     parser.add_argument("--hidden", action="store_true", help="Include hidden files and directories")
-    parser.add_argument("--no-ignore", dest="no_ignore", action="store_true", help="Do not respect .gitignore")
+    parser.add_argument(
+        "--no-ignore",
+        dest="no_ignore",
+        action="store_true",
+        help="Do not respect ignore files (.gitignore/.ignore/.rgignore)",
+    )
     parser.add_argument("--answer", action="store_true", help="Print a narrative answer before grep output")
     parser.add_argument("-y", "--yes", action="store_true", help="Skip file count confirmation")
     parser.add_argument(
@@ -147,11 +152,24 @@ def _pick(cli_value, config: dict, key: str, default=None):
     return default
 
 
-def _find_git_root(start: Path) -> Path | None:
+def _find_git_root(start: Path) -> tuple[Path | None, Path | None]:
     for p in [start, *start.parents]:
-        if (p / ".git").is_dir():
-            return p
-    return None
+        git_path = p / ".git"
+        if git_path.is_dir():
+            return p, git_path
+        if git_path.is_file():
+            try:
+                raw = git_path.read_text(encoding="utf-8", errors="ignore").strip()
+            except Exception:
+                raw = ""
+            if raw.startswith("gitdir:"):
+                git_dir = raw.split(":", 1)[1].strip()
+                git_dir_path = Path(git_dir)
+                if not git_dir_path.is_absolute():
+                    git_dir_path = (p / git_dir_path).resolve()
+                return p, git_dir_path
+            return p, None
+    return None, None
 
 
 def _env_value(name: str) -> str | None:
@@ -442,8 +460,12 @@ def main(argv: list[str] | None = None) -> int:
         ignore_spec = None
         ignore_root = None
         if not args.no_ignore:
-            ignore_root = _find_git_root(cwd) or cwd
-            ignore_spec = build_gitignore_spec(ignore_root)
+            git_root, git_dir = _find_git_root(cwd)
+            ignore_root = git_root or cwd
+            extra_ignores: list[Path] = []
+            if git_dir is not None:
+                extra_ignores.append(git_dir / "info" / "exclude")
+            ignore_spec = build_ignore_spec(ignore_root, extra_paths=extra_ignores)
 
         candidates = collect_candidates(
             input_paths,
