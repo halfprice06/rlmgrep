@@ -27,8 +27,8 @@ One of rlmgrep’s most useful features is that it can “grep” **PDFs and Off
 How it works:
 - **PDFs** are parsed with `pypdf`. Each page gets a marker line like `===== Page N =====`, and output lines include a `page=N` suffix. Line numbers refer to the extracted text (not PDF coordinates).
 - **Office & binary docs** (`.docx`, `.pptx`, `.xlsx`, `.html`, `.zip`, etc.) are converted to Markdown via **MarkItDown**. This happens during ingestion, so rlmgrep can search them like any other text file.
-- **Images** can be described by a vision model through MarkItDown (OpenAI/Anthropic/Gemini).
-- **Audio** transcription is supported through OpenAI when enabled.
+- **Images** can be described by a vision model and then searched through MarkItDown (OpenAI/Anthropic/Gemini), enable and configure in config.toml.
+- **Audio** transcription is supported through OpenAI when enabled, configure in config.toml.
 
 Sidecar caching:
 - For images/audio, converted text is cached next to the original file as `<original>.<ext>.md` and reused on later runs.
@@ -36,7 +36,7 @@ Sidecar caching:
 
 ## Install Deno
 
-DSPy requires the Deno runtime. Install it with the official scripts:
+DSPy's default implementation of RLM requires the Deno runtime. Install it with the official scripts:
 
 macOS/Linux:
 
