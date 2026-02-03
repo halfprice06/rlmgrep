@@ -8,13 +8,30 @@ from pathlib import Path
 import dspy
 from .config import ensure_default_config, load_config
 from .file_map import build_file_map
-from .ingest import FileRecord, load_files, resolve_type_exts
+from .ingest import FileRecord, collect_candidates, load_files, resolve_type_exts
 from .rlm import Match, build_lm, run_rlm
 from .render import render_matches
 
 
 def _warn(msg: str) -> None:
     print(f"rlmgrep: {msg}", file=sys.stderr)
+
+
+def _confirm_over_limit(count: int, threshold: int) -> bool:
+    prompt = (
+        f"rlmgrep: {count} files to load (over {threshold}). Continue? [y/N] "
+    )
+    try:
+        with open("/dev/tty", "r+") as tty:
+            print(prompt, file=tty, end="", flush=True)
+            response = tty.readline()
+    except Exception:
+        if not sys.stdin.isatty():
+            _warn("refusing to prompt for confirmation; use --yes to proceed")
+            return False
+        print(prompt, file=sys.stderr, end="", flush=True)
+        response = sys.stdin.readline()
+    return response.strip().lower() in {"y", "yes"}
 
 
 def verify_matches(
@@ -65,6 +82,7 @@ def _parse_args(argv: list[str]) -> argparse.Namespace:
     parser.add_argument("-m", dest="max_count", type=int, default=None, help="Max matching lines per file")
     parser.add_argument("-a", "--text", dest="binary_as_text", action="store_true", help="Search binary files as text")
     parser.add_argument("--answer", action="store_true", help="Print a narrative answer before grep output")
+    parser.add_argument("-y", "--yes", action="store_true", help="Skip file count confirmation")
 
     parser.add_argument("-g", "--glob", dest="globs", action="append", default=[], help="Include files matching glob (may repeat)")
     parser.add_argument("--type", dest="types", action="append", default=[], help="Include file types (py, js, md, etc.). May repeat")
@@ -328,12 +346,39 @@ def main(argv: list[str] | None = None) -> int:
         }
         warnings: list[str] = []
     else:
-        files, warnings = load_files(
+        warn_threshold = _parse_num(
+            _pick(None, config, "file_warn_threshold", 200), int
+        )
+        hard_max = _parse_num(_pick(None, config, "file_hard_max", 1000), int)
+        if warn_threshold is not None and warn_threshold <= 0:
+            warn_threshold = None
+        if hard_max is not None and hard_max <= 0:
+            hard_max = None
+
+        candidates = collect_candidates(
             args.paths,
             cwd=cwd,
             recursive=args.recursive,
             include_globs=globs,
             type_exts=type_exts,
+        )
+        candidate_count = len(candidates)
+        if hard_max is not None and candidate_count > hard_max:
+            _warn(
+                f"{candidate_count} files to load (over {hard_max}); aborting"
+            )
+            return 2
+        if (
+            warn_threshold is not None
+            and candidate_count > warn_threshold
+            and not args.yes
+        ):
+            if not _confirm_over_limit(candidate_count, warn_threshold):
+                return 2
+
+        files, warnings = load_files(
+            candidates,
+            cwd=cwd,
             markitdown=markitdown,
             enable_images=md_enable_images,
             enable_audio=md_enable_audio,

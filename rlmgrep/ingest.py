@@ -237,12 +237,34 @@ def _matches_globs(path: str, globs: list[str]) -> bool:
     return False
 
 
-def load_files(
+def collect_candidates(
     paths: Iterable[str],
     cwd: Path,
     recursive: bool = True,
     include_globs: list[str] | None = None,
     type_exts: set[str] | None = None,
+) -> list[Path]:
+    files = collect_files(paths, recursive=recursive)
+    candidates: list[Path] = []
+    for fp in files:
+        try:
+            key = fp.relative_to(cwd).as_posix()
+        except ValueError:
+            key = fp.as_posix()
+
+        if include_globs and not _matches_globs(key, include_globs):
+            continue
+
+        if type_exts and fp.suffix.lower() not in type_exts:
+            continue
+
+        candidates.append(fp)
+    return candidates
+
+
+def load_files(
+    candidates: Iterable[Path],
+    cwd: Path,
     markitdown: Any | None = None,
     enable_images: bool = False,
     enable_audio: bool = False,
@@ -254,19 +276,11 @@ def load_files(
     image_convert_count = 0
     audio_convert_count = 0
 
-    files = collect_files(paths, recursive=recursive)
-    for fp in files:
+    for fp in candidates:
         try:
             key = fp.relative_to(cwd).as_posix()
         except ValueError:
             key = fp.as_posix()
-
-        if include_globs and not _matches_globs(key, include_globs):
-            continue
-
-        if type_exts:
-            if fp.suffix.lower() not in type_exts:
-                continue
 
         suffix = fp.suffix.lower()
         if markitdown is not None and not binary_as_text:

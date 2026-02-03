@@ -5,7 +5,7 @@ Grep-shaped search powered by DSPy RLM. It accepts a natural-language query, sca
 ## Quickstart
 
 ```sh
-uv tool install --python 3.11 .
+uv tool install --python 3.11 rlmgrep
 # or from GitHub:
 # uv tool install --python 3.11 git+https://github.com/halfprice06/rlmgrep.git
 
@@ -59,6 +59,7 @@ Common options:
 - `--type T` include file types (repeatable, comma-separated)
 - `--no-recursive` do not recurse directories
 - `-a`, `--text` treat binary files as text
+- `-y`, `--yes` skip file count confirmation
 - `--model`, `--sub-model` override model names
 - `--api-key`, `--api-base`, `--model-type` override provider settings
 - `--max-iterations`, `--max-llm-calls` cap RLM search effort
@@ -87,6 +88,7 @@ cat README.md | rlmgrep "install"
 - `-g/--glob` matches path globs against normalized paths (forward slashes).
 - Paths are printed relative to the current working directory when possible.
 - If no paths are provided, rlmgrep reads from stdin and uses the synthetic path `<stdin>`; if stdin is empty, it exits with code 2.
+- rlmgrep asks for confirmation when more than 200 files would be loaded (use `-y/--yes` to skip), and aborts when more than 1000 files would be loaded.
 
 ## Output contract (stable for agents)
 
@@ -121,6 +123,8 @@ temperature = 1.0
 max_tokens = 64000
 max_iterations = 10
 max_llm_calls = 20
+file_warn_threshold = 200
+file_hard_max = 1000
 # markitdown_enable_images = false
 # markitdown_image_llm_model = "gpt-5-mini"
 # markitdown_image_llm_provider = "openai"
@@ -156,10 +160,8 @@ If more than one provider key is set and the model does not make the provider ob
 
 - Prefer narrow corpora (globs/types) to reduce token usage.
 - Use `--max-llm-calls` to cap costs; combine with small `--max-iterations` for safety.
-- Always read stderr for warnings (skipped files, config issues, ambiguous API keys).
 - For reproducible parsing, use `-n -H` and avoid context (`-C/-A/-B`).
-- RLM results are verified against real file lines; invalid or duplicate matches are dropped and reported.
-
+  
 ## Development
 
 - Install locally: `pip install -e .` or `uv tool install .`
