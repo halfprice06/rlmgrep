@@ -1,6 +1,6 @@
 # rlmgrep
 
-Grep-shaped CLI search tool for coding agents. The query is interpreted by DSPy RLM; output is always real lines from loaded files, rendered in grep-like format.
+Grep-shaped CLI search tool for coding agents. The query is interpreted by DSPy RLM; output is rendered in grep-like format.
 
 This tool does **not** provide a classic literal/regex grep mode. It is designed for semantic, RLM-driven search with grep-shaped inputs/outputs.
 
