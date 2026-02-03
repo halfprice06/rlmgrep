@@ -36,7 +36,7 @@ from .render import render_matches
 
 
 def _warn(msg: str) -> None:
-    print(f"rlmgrep: {msg}", file=sys.stderr)
+    print(f"rlmgrep: {msg}", file=sys.stderr, flush=True)
 
 
 def _console() -> Console:
@@ -538,7 +538,6 @@ def main(argv: list[str] | None = None) -> int:
         _warn(w)
 
     console = _console()
-    progress = None
 
     # Resolve input corpus.
     globs = _split_list(args.globs)
@@ -602,26 +601,31 @@ def main(argv: list[str] | None = None) -> int:
             ignore_spec = build_ignore_spec(ignore_root, extra_paths=extra_ignores)
 
         scan_task = None
-        load_task = None
         scan_count = 0
+        scan_progress = None
         if sys.stderr.isatty():
-            progress = Progress(
+            scan_progress = Progress(
                 SpinnerColumn(),
                 TextColumn("{task.description}"),
+                TextColumn("{task.completed} files"),
                 BarColumn(),
                 TaskProgressColumn(),
                 TimeElapsedColumn(),
                 console=console,
                 transient=False,
             )
-            progress.start()
-            scan_task = progress.add_task("Scanning files", total=None)
+            scan_progress.start()
+            scan_task = scan_progress.add_task("Scanning files", total=None)
 
         def _scan_update(count: int) -> None:
             nonlocal scan_count
             scan_count = count
-            if progress is not None and scan_task is not None:
-                progress.update(scan_task, completed=count)
+            if scan_progress is not None and scan_task is not None:
+                scan_progress.update(
+                    scan_task,
+                    completed=count,
+                    description=f"Scanning files ({count})",
+                )
 
         candidates, scanned = collect_candidates(
             input_paths,
@@ -632,21 +636,21 @@ def main(argv: list[str] | None = None) -> int:
             include_hidden=args.hidden,
             ignore_spec=ignore_spec,
             ignore_root=ignore_root,
-            scan_progress=_scan_update if progress is not None else None,
+            scan_progress=_scan_update if scan_progress is not None else None,
         )
-        if progress is not None and scan_task is not None:
-            progress.update(
+        if scan_progress is not None and scan_task is not None:
+            scan_progress.update(
                 scan_task,
                 total=scanned or scan_count,
                 completed=scanned or scan_count,
+                description=f"Scanning files ({scanned or scan_count})",
             )
+            scan_progress.stop()
         candidate_count = len(candidates)
         if hard_max is not None and candidate_count > hard_max:
             _warn(
                 f"{candidate_count} files to load (over {hard_max}); aborting"
             )
-        if progress is not None:
-            progress.stop()
             return 2
         if (
             warn_threshold is not None
@@ -654,19 +658,40 @@ def main(argv: list[str] | None = None) -> int:
             and not args.yes
         ):
             if not _confirm_over_limit(candidate_count, warn_threshold):
-                if progress is not None:
-                    progress.stop()
                 return 2
-        if progress is not None:
-            load_task = progress.add_task(
+
+        load_task = None
+        load_progress = None
+        if sys.stderr.isatty():
+            load_progress = Progress(
+                SpinnerColumn(),
+                TextColumn("{task.description}"),
+                TextColumn("{task.completed}/{task.total} files"),
+                BarColumn(),
+                TaskProgressColumn(),
+                TimeElapsedColumn(),
+                console=console,
+                transient=False,
+            )
+            load_progress.start()
+            load_task = load_progress.add_task(
                 "Loading files",
                 total=candidate_count,
                 completed=0,
             )
 
+        load_done = 0
+
         def _load_update(done: int, total: int) -> None:
-            if progress is not None and load_task is not None:
-                progress.update(load_task, completed=done, total=total)
+            nonlocal load_done
+            load_done = done
+            if load_progress is not None and load_task is not None:
+                load_progress.update(
+                    load_task,
+                    completed=done,
+                    total=total,
+                    description=f"Loading files ({done}/{total})",
+                )
 
         files, warnings = load_files(
             candidates,
@@ -676,10 +701,24 @@ def main(argv: list[str] | None = None) -> int:
             enable_audio=md_enable_audio,
             audio_transcriber=audio_transcriber,
             binary_as_text=args.binary_as_text,
-            progress=_load_update if progress is not None else None,
+            progress=_load_update if load_progress is not None else None,
         )
-        if progress is not None:
-            progress.stop()
+        if load_progress is not None and load_task is not None:
+            load_progress.update(
+                load_task,
+                completed=load_done,
+                total=candidate_count,
+                description=f"Loading files ({load_done}/{candidate_count})",
+            )
+            load_progress.stop()
+
+        scanned_total = scanned or scan_count
+        loaded_total = len(files)
+        skipped_total = max(0, candidate_count - loaded_total)
+        summary = f"Scanned {scanned_total} files. Loaded {loaded_total}."
+        if skipped_total:
+            summary += f" Skipped {skipped_total}."
+        _warn(summary)
 
     for w in warnings:
         _warn(w)
@@ -792,7 +831,9 @@ def main(argv: list[str] | None = None) -> int:
     before = args.before if args.before is not None else args.context
     after = args.after if args.after is not None else args.context
 
-    use_color = sys.stdout.isatty() and not os.getenv("NO_COLOR")
+    stdout_tty = sys.stdout.isatty()
+    stderr_tty = sys.stderr.isatty()
+    use_color = stdout_tty and not os.getenv("NO_COLOR")
 
     output_lines = render_matches(
         files=files,
@@ -803,13 +844,16 @@ def main(argv: list[str] | None = None) -> int:
         heading=True,
     )
 
-    stdout_console = Console(force_terminal=use_color, color_system="auto")
+    stdout_console = Console(force_terminal=stdout_tty, color_system="auto")
     if args.answer and answer:
         _print_answer(console, answer)
 
-    if use_color and sys.stdout.isatty():
+    if stdout_tty:
         _print_matches(stdout_console, output_lines, use_color=use_color)
-    else:
+    elif stderr_tty:
+        _print_matches(console, output_lines, use_color=False)
+
+    if not stdout_tty:
         for line in output_lines:
             print(line)
 
