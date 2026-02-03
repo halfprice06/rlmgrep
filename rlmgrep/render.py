@@ -28,11 +28,11 @@ def _format_line(
     heading: bool,
 ) -> str:
     delim = ":" if is_match else "-"
-    if show_line_numbers:
-        prefix = _colorize(str(line_no), COLOR_LINE_NO, use_color)
-        sep = "\t" if heading else ""
-        return f"{prefix}{delim}{sep}{text}"
-    return text
+    if not show_line_numbers:
+        return text
+    prefix = _colorize(str(line_no), COLOR_LINE_NO, use_color)
+    sep = "\t" if heading else ""
+    return f"{prefix}{delim}{sep}{text}"
 
 
 def _merge_ranges(ranges: list[tuple[int, int]]) -> list[tuple[int, int]]:

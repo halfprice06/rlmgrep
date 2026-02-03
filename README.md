@@ -50,8 +50,6 @@ rlmgrep [options] "query" [paths...]
 Common options:
 
 - `-n` show line numbers (default)
-- `--no-line-number` hide line numbers
-- `-H` always show filenames (default)
 - `-C N` context lines before/after (grep-style)
 - `-A N` context lines after
 - `-B N` context lines before
@@ -108,7 +106,7 @@ rg -l "token" . | rlmgrep --stdin-files --answer "what does this token control?"
   - `1` = no matches
   - `2` = usage/config/error
 
-Agent tip: use `-n -H` and no context for parse-friendly output, then key off exit codes.
+Agent tip: use `-n` and no context for parse-friendly output, then key off exit codes.
 
 ## Regex-style queries (best effort)
 
@@ -148,7 +146,7 @@ file_hard_max = 1000
 # markitdown_image_llm_api_base = ""
 # markitdown_image_llm_prompt = ""
 # markitdown_enable_audio = false
-# markitdown_audio_model = "gpt-4o-mini-transcribe"
+# markitdown_audio_model = "gpt-4o-mini-transcribe-2025-12-15"
 # markitdown_audio_provider = "openai"
 # markitdown_audio_api_key = ""
 # markitdown_audio_api_base = ""
@@ -168,7 +166,7 @@ If more than one provider key is set and the model does not make the provider ob
 ## Non-text files (PDF, images, audio)
 
 - PDF files are parsed with `pypdf`. Each page gets a marker line `===== Page N =====`, and output lines include a `page=N` suffix.
-- Images and audio are converted via `markitdown` when enabled in config. For image/audio conversion, an `openai` Python client is required.
+- Images and audio are converted via `markitdown` when enabled in config. Image conversion supports `openai`, `anthropic`, and `gemini` providers; audio conversion currently supports `openai` only.
 - Converted image/audio text is cached in sidecar files named `<original>.<ext>.md` next to the original file and reused on subsequent runs.
 - Use `-a/--text` to force binary files to be read as text (UTF-8 with replacement).
 
@@ -176,7 +174,7 @@ If more than one provider key is set and the model does not make the provider ob
 
 - Prefer narrow corpora (globs/types) to reduce token usage.
 - Use `--max-llm-calls` to cap costs; combine with small `--max-iterations` for safety.
-- For reproducible parsing, use `-n -H` and avoid context (`-C/-A/-B`).
+- For reproducible parsing, use `-n` and avoid context (`-C/-A/-B`).
   
 ## Development
 

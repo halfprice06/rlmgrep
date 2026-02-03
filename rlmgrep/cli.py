@@ -73,8 +73,6 @@ def _parse_args(argv: list[str]) -> argparse.Namespace:
     parser.add_argument("paths", nargs="*", help="Files or directories")
 
     parser.add_argument("-n", dest="line_numbers", action="store_true", help="Show line numbers (default)")
-    parser.add_argument("--no-line-number", dest="line_numbers", action="store_false", help="Hide line numbers")
-    parser.add_argument("-H", dest="with_filename", action="store_true", help="Always show filenames (default)")
     parser.add_argument("-r", dest="recursive", action="store_true", help="Recursive (directories are searched recursively by default)")
     parser.add_argument("--no-recursive", dest="recursive", action="store_false", help="Do not recurse directories")
     parser.set_defaults(recursive=True, line_numbers=True)
@@ -240,6 +238,33 @@ def _build_markitdown(config: dict, warnings: list[str]):
             kwargs["base_url"] = api_base
         return OpenAI(**kwargs)
 
+    class _LiteLLMClient:
+        def __init__(self, api_key: str | None, api_base: str | None):
+            try:
+                import litellm  # type: ignore
+            except Exception as exc:
+                raise RuntimeError("litellm not available") from exc
+            self._litellm = litellm
+            self._api_key = api_key
+            self._api_base = api_base
+            self.chat = self._Chat(self)
+
+        class _Chat:
+            def __init__(self, parent):
+                self.completions = parent._Completions(parent)
+
+        class _Completions:
+            def __init__(self, parent):
+                self._parent = parent
+
+            def create(self, model: str, messages):
+                kwargs = {"model": model, "messages": messages}
+                if self._parent._api_key:
+                    kwargs["api_key"] = self._parent._api_key
+                if self._parent._api_base:
+                    kwargs["api_base"] = self._parent._api_base
+                return self._parent._litellm.completion(**kwargs)
+
     llm_client = None
     if enable_images:
         if not llm_model:
@@ -247,18 +272,27 @@ def _build_markitdown(config: dict, warnings: list[str]):
                 "markitdown_enable_images set but markitdown_image_llm_model missing; skipping images"
             )
             enable_images = False
-        elif llm_provider != "openai":
-            warnings.append(
-                f"markitdown image LLM provider '{llm_provider}' not supported; skipping images"
-            )
-            enable_images = False
         else:
-            llm_client = _openai_client(
-                llm_api_key,
-                llm_api_base,
-                "openai package missing; skipping image conversion",
-            )
-            if llm_client is None:
+            if llm_provider == "openai":
+                llm_client = _openai_client(
+                    llm_api_key,
+                    llm_api_base,
+                    "openai package missing; skipping image conversion",
+                )
+                if llm_client is None:
+                    enable_images = False
+            elif llm_provider in {"gemini", "anthropic"}:
+                try:
+                    llm_client = _LiteLLMClient(llm_api_key, llm_api_base)
+                except RuntimeError:
+                    warnings.append(
+                        "litellm not available; skipping image conversion"
+                    )
+                    enable_images = False
+            else:
+                warnings.append(
+                    f"markitdown image LLM provider '{llm_provider}' not supported; skipping images"
+                )
                 enable_images = False
 
     md_kwargs: dict[str, object] = {"enable_plugins": False}
