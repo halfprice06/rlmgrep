@@ -68,19 +68,19 @@ Examples:
 
 ```sh
 # Natural-language query over a repo
-rlmgrep -n -C 2 "token parsing" rlmgrep/
+rlmgrep -n -C 2 "Where is retry/backoff configured and what are the defaults?" .
 
 # Restrict to Python files
-rlmgrep "where config is read" --type py rlmgrep/
+rlmgrep "Where do we parse JWTs and enforce expiration?" --type py .
 
 # Glob filters (repeatable or comma-separated)
-rlmgrep "error handling" -g "**/*.py" -g "**/*.md" .
+rlmgrep "How do we map external API errors into internal error codes?" -g "**/*.py" -g "**/*.ts" .
 
-# Read from stdin (only when no paths are provided)
-cat README.md | rlmgrep "install"
+# Single-file semantic question (when you already have the file)
+cat README.md | rlmgrep --answer "What is this tool for and how is it used?"
 
 # Use rg/grep to find candidate files, then rlmgrep over that list
-rg -l "token" . | rlmgrep --stdin-files --answer "what does this token control?"
+rg -l "token" . | rlmgrep --files-from-stdin --answer "What does this token control and where is it validated?"
 ```
 
 ## Input selection
@@ -105,7 +105,6 @@ rg -l "token" . | rlmgrep --stdin-files --answer "what does this token control?"
   - `1` = no matches
   - `2` = usage/config/error
 
-Agent tip: use `-n` and no context for parse-friendly output, then key off exit codes.
 
 ## Regex-style queries (best effort)
 
@@ -169,18 +168,8 @@ If more than one provider key is set and the model does not make the provider ob
 - Converted image/audio text is cached in sidecar files named `<original>.<ext>.md` next to the original file and reused on subsequent runs.
 - Use `-a/--text` to force binary files to be read as text (UTF-8 with replacement).
 
-## Agent usage notes
-
-- Prefer narrow corpora (globs/types) to reduce token usage.
-- Use `--max-llm-calls` to cap costs; combine with small `--max-iterations` for safety.
-- For reproducible parsing, use `-n` and avoid context (`-C/-A/-B`).
-  
 ## Development
 
 - Install locally: `pip install -e .` or `uv tool install .`
 - Run: `rlmgrep "query" .`
 - No test suite is configured yet.
-
-## Security
-
-Do not commit API keys. Use environment variables or `~/.rlmgrep/config.toml`.

@@ -85,9 +85,21 @@ def _parse_args(argv: list[str]) -> argparse.Namespace:
     parser.add_argument("--answer", action="store_true", help="Print a narrative answer before grep output")
     parser.add_argument("-y", "--yes", action="store_true", help="Skip file count confirmation")
     parser.add_argument(
-        "--stdin-files",
+        "--files-from-stdin",
         action="store_true",
-        help="Treat stdin as newline-delimited file paths",
+        help="Treat stdin as newline-delimited file paths (e.g., rg -l)",
+    )
+    parser.add_argument(
+        "--files-from-rg",
+        dest="stdin_files",
+        action="store_true",
+        help="Alias for --files-from-stdin",
+    )
+    parser.add_argument(
+        "--stdin-files",
+        dest="stdin_files",
+        action="store_true",
+        help="Deprecated: use --files-from-stdin",
     )
 
     parser.add_argument("-g", "--glob", dest="globs", action="append", default=[], help="Include files matching glob (may repeat)")
