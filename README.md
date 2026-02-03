@@ -19,6 +19,20 @@ rlmgrep "where are API keys read" rlmgrep/
 - Deno runtime (DSPy RLM uses a Deno-based interpreter)
 - API key for your chosen provider (OpenAI, Anthropic, Gemini, etc.)
 
+## Non-text Files (PDF + Office + Media)
+
+One of rlmgrep’s most useful features is that it can “grep” **PDFs and Office files** by converting them into text before the RLM search runs.
+
+How it works:
+- **PDFs** are parsed with `pypdf`. Each page gets a marker line like `===== Page N =====`, and output lines include a `page=N` suffix. Line numbers refer to the extracted text (not PDF coordinates).
+- **Office & binary docs** (`.docx`, `.pptx`, `.xlsx`, `.html`, `.zip`, etc.) are converted to Markdown via **MarkItDown**. This happens during ingestion, so rlmgrep can search them like any other text file.
+- **Images** can be described by a vision model through MarkItDown (OpenAI/Anthropic/Gemini).
+- **Audio** transcription is supported through OpenAI when enabled.
+
+Sidecar caching:
+- For images/audio, converted text is cached next to the original file as `<original>.<ext>.md` and reused on later runs.
+- Use `-a/--text` if you want to treat binary files as raw text (UTF‑8 with replacement) and skip conversion.
+
 ## Install Deno
 
 DSPy requires the Deno runtime. Install it with the official scripts:
@@ -161,13 +175,6 @@ CLI flags override config values. Model keys are resolved as:
    - `GEMINI_API_KEY`
 
 If more than one provider key is set and the model does not make the provider obvious, rlmgrep emits a warning and requires an explicit `--api-key`.
-
-## Non-text files (PDF, images, audio)
-
-- PDF files are parsed with `pypdf`. Each page gets a marker line `===== Page N =====`, and output lines include a `page=N` suffix.
-- Images and audio are converted via `markitdown` when enabled in config. Image conversion supports `openai`, `anthropic`, and `gemini` providers; audio conversion currently supports `openai` only.
-- Converted image/audio text is cached in sidecar files named `<original>.<ext>.md` next to the original file and reused on subsequent runs.
-- Use `-a/--text` to force binary files to be read as text (UTF-8 with replacement).
 
 ## Skill (Anthropic-style)
 
