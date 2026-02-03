@@ -5,8 +5,9 @@ Grep-shaped search powered by DSPy RLM. It accepts a natural-language query, sca
 ## Quickstart
 
 ```sh
-pip install -e .
-# or: uv tool install .
+uv tool install --python 3.11 .
+# or from GitHub:
+# uv tool install --python 3.11 git+https://github.com/halfprice06/rlmgrep.git
 
 export OPENAI_API_KEY=...  # or set keys in ~/.rlmgrep
 rlmgrep "where are API keys read" rlmgrep/
@@ -14,7 +15,7 @@ rlmgrep "where are API keys read" rlmgrep/
 
 ## Requirements
 
-- Python 3.10+
+- Python 3.11+
 - Deno runtime (DSPy RLM uses a Deno-based interpreter)
 - API key for your chosen provider (OpenAI, Anthropic, Gemini, etc.)
 
@@ -61,7 +62,7 @@ Common options:
 - `--model`, `--sub-model` override model names
 - `--api-key`, `--api-base`, `--model-type` override provider settings
 - `--max-iterations`, `--max-llm-calls` cap RLM search effort
-- `--rlm-verbose` show verbose RLM output
+- `-v`, `--verbose` show verbose RLM output
 
 Examples:
 

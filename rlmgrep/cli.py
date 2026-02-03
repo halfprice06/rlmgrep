@@ -86,7 +86,7 @@ def _parse_args(argv: list[str]) -> argparse.Namespace:
 
     parser.add_argument("--max-iterations", type=int, default=None, help="RLM max iterations")
     parser.add_argument("--max-llm-calls", type=int, default=None, help="RLM max LLM calls")
-    parser.add_argument("--rlm-verbose", action="store_true", help="Verbose RLM output")
+    parser.add_argument("-v", "--verbose", action="store_true", help="Verbose RLM output")
     parser.add_argument(
         "--init-config",
         action="store_true",
@@ -423,7 +423,7 @@ def main(argv: list[str] | None = None) -> int:
             file_map=file_map,
             max_iterations=max_iterations,
             max_llm_calls=max_llm_calls,
-            verbose=args.rlm_verbose,
+            verbose=args.verbose,
             sub_lm=sub_lm,
             with_answer=args.answer,
         )
