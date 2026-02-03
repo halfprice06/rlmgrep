@@ -3,6 +3,8 @@ from __future__ import annotations
 import argparse
 import os
 import sys
+import shutil
+import subprocess
 from pathlib import Path
 
 import dspy
@@ -170,6 +172,47 @@ def _find_git_root(start: Path) -> tuple[Path | None, Path | None]:
                 return p, git_dir_path
             return p, None
     return None, None
+
+
+def _global_ignore_paths(cwd: Path | None = None) -> list[Path]:
+    paths: list[Path] = []
+    cwd = cwd or Path.cwd()
+    if shutil.which("git"):
+        try:
+            result = subprocess.run(
+                ["git", "config", "--get", "--path", "core.excludesfile"],
+                cwd=cwd,
+                capture_output=True,
+                text=True,
+                check=False,
+            )
+            value = (result.stdout or "").strip()
+        except Exception:
+            value = ""
+        if value:
+            candidate = Path(value).expanduser()
+            if candidate.exists():
+                paths.append(candidate)
+
+    xdg_config = os.getenv("XDG_CONFIG_HOME")
+    if xdg_config:
+        default_path = Path(xdg_config) / "git" / "ignore"
+    else:
+        default_path = Path.home() / ".config" / "git" / "ignore"
+    if default_path.exists():
+        paths.append(default_path)
+
+    legacy = Path.home() / ".gitignore_global"
+    if legacy.exists():
+        paths.append(legacy)
+
+    seen: set[Path] = set()
+    unique: list[Path] = []
+    for p in paths:
+        if p not in seen:
+            seen.add(p)
+            unique.append(p)
+    return unique
 
 
 def _env_value(name: str) -> str | None:
@@ -465,6 +508,7 @@ def main(argv: list[str] | None = None) -> int:
             extra_ignores: list[Path] = []
             if git_dir is not None:
                 extra_ignores.append(git_dir / "info" / "exclude")
+            extra_ignores.extend(_global_ignore_paths(ignore_root))
             ignore_spec = build_ignore_spec(ignore_root, extra_paths=extra_ignores)
 
         candidates = collect_candidates(
