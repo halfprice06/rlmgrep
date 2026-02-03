@@ -204,6 +204,8 @@ def build_ignore_spec(
             rel_dir = gi.parent.relative_to(root).as_posix()
         except ValueError:
             rel_dir = ""
+        if rel_dir in {".", ""}:
+            rel_dir = ""
         try:
             raw_lines = gi.read_text(encoding="utf-8", errors="ignore").splitlines()
         except Exception:
