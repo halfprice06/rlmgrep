@@ -186,22 +186,10 @@ def _parse_args(argv: list[str]) -> argparse.Namespace:
     parser.add_argument("--answer", action="store_true", help="Print a narrative answer before grep output")
     parser.add_argument("-y", "--yes", action="store_true", help="Skip file count confirmation")
     parser.add_argument(
-        "--files-from-stdin",
-        dest="stdin_files",
+        "--paths-from-stdin",
+        dest="stdin_paths",
         action="store_true",
         help="Treat stdin as newline-delimited file paths (e.g., rg -l)",
-    )
-    parser.add_argument(
-        "--files-from-rg",
-        dest="stdin_files",
-        action="store_true",
-        help="Alias for --files-from-stdin",
-    )
-    parser.add_argument(
-        "--stdin-files",
-        dest="stdin_files",
-        action="store_true",
-        help="Deprecated: use --files-from-stdin",
     )
 
     parser.add_argument("-g", "--glob", dest="globs", action="append", default=[], help="Include files matching glob (may repeat)")
@@ -559,7 +547,7 @@ def main(argv: list[str] | None = None) -> int:
     stdin_text: str | None = None
     if args.paths:
         input_paths = list(args.paths)
-    elif args.stdin_files:
+    elif args.stdin_paths:
         if sys.stdin.isatty():
             _warn("no input paths and stdin is empty")
             return 2

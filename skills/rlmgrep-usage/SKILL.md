@@ -1,6 +1,6 @@
 ---
 name: rlmgrep-usage
-description: Decide when to use grep/rg (literal, fast, exhaustive) vs rlmgrep (semantic, slower, cross-file reasoning), especially for conceptual questions, cross-file flows, and mixed-format corpora (PDFs/images/audio). Covers scoping strategies, regex-in-natural-language best-effort behavior, and key flags (`--files-from-stdin`, `--files-from-rg`, `--answer`, `-g`, `--type`, `-y`) that make rlmgrep reliable and cost-aware.
+description: Decide when to use grep/rg (literal, fast, exhaustive) vs rlmgrep (semantic, slower, cross-file reasoning), especially for conceptual questions, cross-file flows, and mixed-format corpora (PDFs/images/audio). Covers scoping strategies, regex-in-natural-language best-effort behavior, and key flags (`--paths-from-stdin`, `--answer`, `-g`, `--type`, `-y`) that make rlmgrep reliable and cost-aware.
 ---
 
 # Rlmgrep Usage
@@ -32,7 +32,7 @@ Examples:
 rlmgrep -C 2 "where is api key parsed" .
 rlmgrep "retry logic for 429" --type py .
 rlmgrep "find config defaults" -g "**/*.toml" -g "**/*.py" .
-rg -l "token" . | rlmgrep --files-from-stdin --answer "what does this token control?"
+rg -l "token" . | rlmgrep --paths-from-stdin --answer "what does this token control?"
 ```
 
 Notes:
@@ -44,7 +44,6 @@ Notes:
   - To run on larger repos, pre-filter with `rg -l ...`, or use `-g/--type` to narrow the file set.
 - You can include regex-style patterns inside a natural-language prompt, and the RLM may use Python `re` internally to approximate that logic, but results are not guaranteed to match `grep`/`rg` exactly.
 - Non-text inputs: PDFs are parsed, images can be described via LLMs (OpenAI/Anthropic/Gemini), and audio transcription is OpenAI-only.
-- Known limitation (older versions): `--files-from-stdin` may treat stdin as raw text instead of file paths. If you see `<stdin>` in output, upgrade or use `--files-from-rg`.
 
 Example (best-effort regex semantics + extra context):
 
@@ -60,13 +59,13 @@ Examples:
 
 ```sh
 # Find candidate files quickly, then ask a semantic question across them
-rg -l "auth" . | rlmgrep --files-from-stdin --answer "where is auth handled?"
+rg -l "auth" . | rlmgrep --paths-from-stdin --answer "where is auth handled?"
 
 # Use a literal filter to narrow the corpus, then ask for explanation
-rg -l "retry" . | rlmgrep --files-from-stdin --answer "how do retries work?"
+rg -l "retry" . | rlmgrep --paths-from-stdin --answer "how do retries work?"
 
 # Restrict to a file type first, then ask a conceptual question
-rg -l "token" --type py . | rlmgrep --files-from-stdin --answer "where are tokens parsed?"
+rg -l "token" --type py . | rlmgrep --paths-from-stdin --answer "where are tokens parsed?"
 ```
 
 ## Default Tool Choice Pattern

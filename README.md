@@ -86,8 +86,7 @@ Common options:
 - `--no-recursive` do not recurse directories
 - `-a`, `--text` treat binary files as text
 - `-y`, `--yes` skip file count confirmation
-- `--files-from-stdin` treat stdin as newline-delimited file paths (e.g., `rg -l`)
-- `--files-from-rg` alias for `--files-from-stdin`
+- `--paths-from-stdin` treat stdin as newline-delimited file paths (e.g., `rg -l`)
 - `--model`, `--sub-model` override model names
 - `--api-key`, `--api-base`, `--model-type` override provider settings
 - `--max-iterations`, `--max-llm-calls` cap RLM search effort
@@ -109,7 +108,7 @@ rlmgrep "How do we map external API errors into internal error codes?" -g "**/*.
 cat README.md | rlmgrep --answer "What is this tool for and how is it used?"
 
 # Use rg/grep to find candidate files, then rlmgrep over that list
-rg -l "token" . | rlmgrep --files-from-stdin --answer "What does this token control and where is it validated?"
+rg -l "token" . | rlmgrep --paths-from-stdin --answer "What does this token control and where is it validated?"
 ```
 
 ## Input selection
