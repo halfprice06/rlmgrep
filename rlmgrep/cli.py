@@ -569,9 +569,9 @@ def main(argv: list[str] | None = None) -> int:
             return 2
     else:
         if sys.stdin.isatty():
-            _warn("no input paths and stdin is empty")
-            return 2
-        stdin_text = sys.stdin.read()
+            input_paths = ["."]
+        else:
+            stdin_text = sys.stdin.read()
 
     if input_paths is None:
         text = stdin_text or ""
