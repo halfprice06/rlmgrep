@@ -187,6 +187,7 @@ def _parse_args(argv: list[str]) -> argparse.Namespace:
     parser.add_argument("-y", "--yes", action="store_true", help="Skip file count confirmation")
     parser.add_argument(
         "--files-from-stdin",
+        dest="stdin_files",
         action="store_true",
         help="Treat stdin as newline-delimited file paths (e.g., rg -l)",
     )
