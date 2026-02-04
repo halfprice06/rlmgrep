@@ -119,7 +119,7 @@ rg -l "token" . | rlmgrep --paths-from-stdin --answer "What does this token cont
 - `-g/--glob` matches path globs against normalized paths (forward slashes).
 - Paths are printed relative to the current working directory when possible.
 - If no paths are provided and stdin is a TTY, rlmgrep defaults to `.`. If stdin is piped, it reads from stdin and uses the synthetic path `<stdin>`.
-- rlmgrep asks for confirmation when more than 200 files would be loaded (use `-y/--yes` to skip), and aborts when more than 1000 files would be loaded.
+- rlmgrep asks for confirmation when more than 1000 files would be loaded (use `-y/--yes` to skip), and aborts when more than 5000 files would be loaded.
 
 ## Output contract (stable for agents)
 
@@ -164,8 +164,8 @@ temperature = 1.0
 max_tokens = 64000
 max_iterations = 10
 max_llm_calls = 20
-file_warn_threshold = 200
-file_hard_max = 1000
+file_warn_threshold = 1000
+file_hard_max = 5000
 # markitdown_enable_images = false
 # markitdown_image_llm_model = "gpt-5-mini"
 # markitdown_image_llm_provider = "openai"

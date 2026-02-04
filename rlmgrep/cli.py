@@ -570,9 +570,9 @@ def main(argv: list[str] | None = None) -> int:
         warnings: list[str] = []
     else:
         warn_threshold = _parse_num(
-            _pick(None, config, "file_warn_threshold", 200), int
+            _pick(None, config, "file_warn_threshold", 1000), int
         )
-        hard_max = _parse_num(_pick(None, config, "file_hard_max", 1000), int)
+        hard_max = _parse_num(_pick(None, config, "file_hard_max", 5000), int)
         if warn_threshold is not None and warn_threshold <= 0:
             warn_threshold = None
         if hard_max is not None and hard_max <= 0:
