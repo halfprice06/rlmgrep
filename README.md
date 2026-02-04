@@ -118,7 +118,7 @@ rg -l "token" . | rlmgrep --paths-from-stdin --answer "What does this token cont
 - `--type` uses built-in type mappings (e.g., `py`, `js`, `md`); unknown values are treated as file extensions.
 - `-g/--glob` matches path globs against normalized paths (forward slashes).
 - Paths are printed relative to the current working directory when possible.
-- If no paths are provided, rlmgrep reads from stdin and uses the synthetic path `<stdin>`; if stdin is empty, it exits with code 2.
+- If no paths are provided and stdin is a TTY, rlmgrep defaults to `.`. If stdin is piped, it reads from stdin and uses the synthetic path `<stdin>`.
 - rlmgrep asks for confirmation when more than 200 files would be loaded (use `-y/--yes` to skip), and aborts when more than 1000 files would be loaded.
 
 ## Output contract (stable for agents)
