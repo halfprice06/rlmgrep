@@ -5,6 +5,7 @@
   - `cli.py` is the entry point for argument parsing and orchestration.
   - `ingest.py`, `render.py`, and `interpreter.py` handle file loading, output shaping, and query execution.
   - `config.py` and `rlm.py` manage model configuration and DSPy integration.
+- `skills/rlmgrep-usage/` contains a packaged skill that documents when to use rlmgrep vs grep/rg.
 - `rlmgrep.egg-info/` is generated build metadata; do not edit by hand.
 - `README.md` documents install, usage, and configuration.
 
@@ -18,6 +19,7 @@
 - Version lives in `pyproject.toml`. Bump before publishing.
 - Build: `python -m build`
 - Publish: `python -m twine upload dist/*`
+- Verify from PyPI: `uv tool install --force --refresh --no-cache rlmgrep==<version>` then `rlmgrep --version`.
 - Ensure `README.md` reflects the latest CLI/config behavior before publish.
 
 
