@@ -166,6 +166,7 @@ max_iterations = 10
 max_llm_calls = 20
 file_warn_threshold = 1000
 file_hard_max = 5000
+markitdown_max_concurrency = 4
 # markitdown_enable_images = false
 # markitdown_image_llm_model = "gpt-5-mini"
 # markitdown_image_llm_provider = "openai"

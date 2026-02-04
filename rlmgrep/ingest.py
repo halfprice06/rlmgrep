@@ -410,6 +410,7 @@ def load_files(
     enable_audio: bool = False,
     audio_transcriber: Callable[[Path], str] | None = None,
     binary_as_text: bool = False,
+    max_concurrency: int | None = None,
     progress: Callable[[int, int], None] | None = None,
 ) -> tuple[dict[str, FileRecord], list[str]]:
     records: dict[str, FileRecord] = {}
@@ -419,12 +420,29 @@ def load_files(
 
     candidate_list = list(candidates)
     total = len(candidate_list)
-    for idx, fp in enumerate(candidate_list, start=1):
+    def _key_for_path(fp: Path) -> str:
         try:
-            key = fp.relative_to(cwd).as_posix()
+            return fp.relative_to(cwd).as_posix()
         except ValueError:
-            key = fp.as_posix()
+            return fp.as_posix()
 
+    def _load_one(fp: Path) -> tuple[str, str | None, list[str] | None, list[int] | None, str | None]:
+        text, page_map, err = _load_file(
+            fp,
+            markitdown=markitdown,
+            enable_images=enable_images,
+            enable_audio=enable_audio,
+            audio_transcriber=audio_transcriber,
+            binary_as_text=binary_as_text,
+        )
+        if text is None or err is not None:
+            return _key_for_path(fp), None, None, None, err
+        lines = text.split("\n")
+        if page_map is not None and len(page_map) != len(lines):
+            page_map = None
+        return _key_for_path(fp), text, lines, page_map, None
+
+    for fp in candidate_list:
         suffix = fp.suffix.lower()
         if markitdown is not None and not binary_as_text:
             if enable_images and suffix in IMAGE_EXTS:
@@ -434,37 +452,59 @@ def load_files(
                 if not _sidecar_path(fp).is_file():
                     audio_convert_count += 1
 
-        text, page_map, err = _load_file(
-            fp,
-            markitdown=markitdown,
-            enable_images=enable_images,
-            enable_audio=enable_audio,
-            audio_transcriber=audio_transcriber,
-            binary_as_text=binary_as_text,
-        )
-        if err is not None:
-            silent_errors = {
-                "binary file",
-                "image conversion disabled",
-                "audio conversion disabled",
-            }
-            if err not in silent_errors and "No converter attempted a conversion" not in err:
-                warnings.append(f"skip {fp}: {err}")
-            if progress is not None:
-                progress(idx, total)
-            continue
-        if text is None:
-            warnings.append(f"skip {fp}: unreadable")
-            if progress is not None:
-                progress(idx, total)
-            continue
+    use_concurrency = max_concurrency is not None and max_concurrency > 1
+    if use_concurrency:
+        from concurrent.futures import ThreadPoolExecutor, as_completed
 
-        lines = text.split("\n")
-        if page_map is not None and len(page_map) != len(lines):
-            page_map = None
-        records[key] = FileRecord(path=key, text=text, lines=lines, page_map=page_map)
-        if progress is not None:
-            progress(idx, total)
+        with ThreadPoolExecutor(max_workers=max_concurrency) as executor:
+            future_map = {
+                executor.submit(_load_one, fp): fp for fp in candidate_list
+            }
+            completed = 0
+            for future in as_completed(future_map):
+                fp = future_map[future]
+                key, text, lines, page_map, err = future.result()
+                if err is not None:
+                    silent_errors = {
+                        "binary file",
+                        "image conversion disabled",
+                        "audio conversion disabled",
+                    }
+                    if err not in silent_errors and "No converter attempted a conversion" not in err:
+                        warnings.append(f"skip {fp}: {err}")
+                elif text is None or lines is None:
+                    warnings.append(f"skip {fp}: unreadable")
+                else:
+                    records[key] = FileRecord(
+                        path=key, text=text, lines=lines, page_map=page_map
+                    )
+                completed += 1
+                if progress is not None:
+                    progress(completed, total)
+    else:
+        for idx, fp in enumerate(candidate_list, start=1):
+            key, text, lines, page_map, err = _load_one(fp)
+            if err is not None:
+                silent_errors = {
+                    "binary file",
+                    "image conversion disabled",
+                    "audio conversion disabled",
+                }
+                if err not in silent_errors and "No converter attempted a conversion" not in err:
+                    warnings.append(f"skip {fp}: {err}")
+                if progress is not None:
+                    progress(idx, total)
+                continue
+            if text is None or lines is None:
+                warnings.append(f"skip {fp}: unreadable")
+                if progress is not None:
+                    progress(idx, total)
+                continue
+            records[key] = FileRecord(
+                path=key, text=text, lines=lines, page_map=page_map
+            )
+            if progress is not None:
+                progress(idx, total)
 
     if image_convert_count > 5:
         warnings.append(

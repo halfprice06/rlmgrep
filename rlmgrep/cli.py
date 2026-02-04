@@ -540,6 +540,11 @@ def main(argv: list[str] | None = None) -> int:
     markitdown, md_enable_images, md_enable_audio, audio_transcriber = _build_markitdown(
         config, md_warnings
     )
+    md_max_concurrency = _parse_num(
+        _pick(None, config, "markitdown_max_concurrency", 1), int
+    )
+    if md_max_concurrency is not None and md_max_concurrency <= 1:
+        md_max_concurrency = None
     for w in md_warnings:
         _warn(w)
 
@@ -690,6 +695,7 @@ def main(argv: list[str] | None = None) -> int:
             enable_audio=md_enable_audio,
             audio_transcriber=audio_transcriber,
             binary_as_text=args.binary_as_text,
+            max_concurrency=md_max_concurrency,
             progress=_load_update if load_progress is not None else None,
         )
         if load_progress is not None and load_task is not None:
