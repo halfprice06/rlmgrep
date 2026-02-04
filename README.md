@@ -86,7 +86,7 @@ Common options:
 - `--no-recursive` do not recurse directories
 - `-a`, `--text` treat binary files as text
 - `-y`, `--yes` skip file count confirmation
-- `--paths-from-stdin` treat stdin as newline-delimited file paths (e.g., `rg -l`)
+- `--paths-from-stdin` treat stdin as newline-delimited file paths (e.g., `rg -l`). Without this flag, piped stdin is treated as content.
 - `--model`, `--sub-model` override model names
 - `--api-key`, `--api-base`, `--model-type` override provider settings
 - `--max-iterations`, `--max-llm-calls` cap RLM search effort
@@ -104,7 +104,7 @@ rlmgrep "Where do we parse JWTs and enforce expiration?" --type py .
 # Glob filters (repeatable or comma-separated)
 rlmgrep "How do we map external API errors into internal error codes?" -g "**/*.py" -g "**/*.ts" .
 
-# Single-file semantic question (when you already have the file)
+# Read file content from stdin
 cat README.md | rlmgrep --answer "What is this tool for and how is it used?"
 
 # Use rg/grep to find candidate files, then rlmgrep over that list

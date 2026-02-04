@@ -38,6 +38,7 @@ rg -l "token" . | rlmgrep --paths-from-stdin --answer "what does this token cont
 Notes:
 - rlmgrep is slower and may cost tokens; use it when semantic reasoning is worth it.
 - rlmgrep is grep-shaped output, but the match semantics are model-driven.
+- `--paths-from-stdin` treats stdin as newline-delimited file paths. Without it, piped stdin is treated as file content.
 - Hidden files and ignore files are respected by default. Use `--hidden` to include dotfiles, and `--no-ignore` to bypass `.gitignore`/`.rgignore`/`.ignore` (similar to rg).
 - rlmgrep asks for confirmation when more than 200 files would be loaded (use `-y/--yes` to skip). It aborts over 1000 files by default.
   - `-y/--yes` only skips the confirmation prompt; it does not bypass the 1000-file abort cap.
