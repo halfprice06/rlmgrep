@@ -305,6 +305,8 @@ def _detect_provider(model: str | None) -> str | None:
     if "/" in model:
         return model.split("/", 1)[0].lower()
     lower = model.lower()
+    if "openrouter" in lower:
+        return "openrouter"
     if "anthropic" in lower:
         return "anthropic"
     if "gemini" in lower or "google" in lower:
@@ -332,6 +334,7 @@ def _pick_api_key(
         "openai": "OPENAI_API_KEY",
         "anthropic": "ANTHROPIC_API_KEY",
         "gemini": "GEMINI_API_KEY",
+        "openrouter": "OPENROUTER_API_KEY",
     }
 
     if provider in provider_env:

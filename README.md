@@ -160,6 +160,10 @@ model = "openai/gpt-5.2"
 sub_model = "openai/gpt-5-mini"
 api_base = "https://api.openai.com/v1"
 model_type = "responses"
+# openrouter example:
+# model = "openrouter/anthropic/claude-3.5-sonnet"
+# api_base = "https://openrouter.ai/api/v1"
+# api_key = ""
 temperature = 1.0
 max_tokens = 64000
 max_iterations = 10
@@ -188,6 +192,7 @@ CLI flags override config values. Model keys are resolved as:
    - `OPENAI_API_KEY`
    - `ANTHROPIC_API_KEY`
    - `GEMINI_API_KEY`
+   - `OPENROUTER_API_KEY`
 
 If more than one provider key is set and the model does not make the provider obvious, rlmgrep emits a warning and requires an explicit `--api-key`.
 

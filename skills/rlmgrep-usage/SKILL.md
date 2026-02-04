@@ -45,6 +45,7 @@ Notes:
   - To run on larger repos, pre-filter with `rg -l ...`, or use `-g/--type` to narrow the file set.
 - You can include regex-style patterns inside a natural-language prompt, and the RLM may use Python `re` internally to approximate that logic, but results are not guaranteed to match `grep`/`rg` exactly.
 - Non-text inputs: PDFs are parsed, images can be described via LLMs (OpenAI/Anthropic/Gemini), and audio transcription is OpenAI-only.
+- OpenRouter: set `model` to `openrouter/...`, set `api_base` to `https://openrouter.ai/api/v1`, and provide `OPENROUTER_API_KEY` (or `api_key` in config).
 
 Example (best-effort regex semantics + extra context):
 
