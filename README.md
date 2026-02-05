@@ -77,6 +77,7 @@ rlmgrep [options] "query" [paths...]
 Common options:
 
 - `--answer` return a narrative answer before the grep output
+- `--answer-only` return only the narrative answer (no grep output)
 - `-C N` context lines before/after (grep-style)
 - `-A N` context lines after
 - `-B N` context lines before

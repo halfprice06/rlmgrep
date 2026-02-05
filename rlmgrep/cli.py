@@ -184,6 +184,7 @@ def _parse_args(argv: list[str]) -> argparse.Namespace:
         help="Do not respect ignore files (.gitignore/.ignore/.rgignore)",
     )
     parser.add_argument("--answer", action="store_true", help="Print a narrative answer before grep output")
+    parser.add_argument("--answer-only", action="store_true", help="Print only the narrative answer")
     parser.add_argument("-y", "--yes", action="store_true", help="Skip file count confirmation")
     parser.add_argument(
         "--paths-from-stdin",
@@ -521,6 +522,8 @@ def main(argv: list[str] | None = None) -> int:
     if not args.pattern:
         _warn("missing pattern")
         return 2
+    if args.answer_only:
+        args.answer = True
 
     _, err = ensure_default_config()
     if err:
@@ -833,25 +836,29 @@ def main(argv: list[str] | None = None) -> int:
     stderr_tty = sys.stderr.isatty()
     use_color = stdout_tty and not os.getenv("NO_COLOR")
 
-    output_lines = render_matches(
-        files=files,
-        matches=verified,
-        before=before,
-        after=after,
-        use_color=use_color,
-        heading=True,
-    )
+    if args.answer_only:
+        output_lines: list[str] = []
+    else:
+        output_lines = render_matches(
+            files=files,
+            matches=verified,
+            before=before,
+            after=after,
+            use_color=use_color,
+            heading=True,
+        )
 
     stdout_console = Console(force_terminal=stdout_tty, color_system="auto")
     if args.answer and answer:
         _print_answer(console, answer)
 
-    if stdout_tty:
-        _print_matches(stdout_console, output_lines, use_color=use_color)
-    elif stderr_tty:
-        _print_matches(console, output_lines, use_color=False)
+    if not args.answer_only:
+        if stdout_tty:
+            _print_matches(stdout_console, output_lines, use_color=use_color)
+        elif stderr_tty:
+            _print_matches(console, output_lines, use_color=False)
 
-    if not stdout_tty:
+    if not stdout_tty and not args.answer_only:
         for line in output_lines:
             print(line)
 
