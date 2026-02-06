@@ -41,6 +41,7 @@ How it works:
 - **Office & binary docs** (`.docx`, `.pptx`, `.xlsx`, `.html`, `.zip`, etc.) are converted to Markdown via **MarkItDown**. This happens during ingestion, so rlmgrep can search them like any other text file.
 - **Images** can be described by a vision model and then searched through MarkItDown (OpenAI/Anthropic/Gemini), enable and configure in config.toml.
 - **Audio** transcription is supported through OpenAI when enabled, configure in config.toml.
+- **MarkItDown is loaded lazily**. Text-only runs skip MarkItDown import entirely; non-text conversion is only enabled when candidate non-text files are present.
 
 Sidecar caching:
 - For images/audio, converted text is cached next to the original file as `<original>.<ext>.md` and reused on later runs.
@@ -147,9 +148,12 @@ rlmgrep --signature-json 'summary: str, findings: list[dict[str,str]]' "Audit au
 
 Custom signature mode:
 - Use `--signature` or `--signature-json` with output fields only (for example: `summary: str, findings: list[str]`).
+- Do not include inputs or `->`; inputs are fixed internally.
 - Inputs are fixed internally as `directory: dict, file_map: str, query: str`.
 - Supported output types: `str`, `int`, `float`, `bool`, `list[T]`, `dict[str, T]`, `Literal[...]`.
-- `--signature` emits sectioned text, `--signature-json` emits compact JSON.
+- JSON mapping is: `str` -> JSON string, `int/float` -> JSON number, `bool` -> JSON boolean, `list[T]` -> JSON array, `dict[str, T]` -> JSON object, `Literal[...]` -> JSON scalar.
+- `--signature` emits sectioned text with clear headers.
+- `--signature-json` emits one compact JSON object to stdout (status/progress/warnings stay on stderr).
 - In custom signature mode, successful execution returns exit code `0`.
 
 

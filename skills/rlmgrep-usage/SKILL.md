@@ -33,6 +33,8 @@ rlmgrep -C 2 "where is api key parsed" .
 rlmgrep "retry logic for 429" --type py .
 rlmgrep "find config defaults" -g "**/*.toml" -g "**/*.py" .
 rg -l "token" . | rlmgrep --paths-from-stdin --answer "what does this token control?"
+rlmgrep --signature 'summary: str, findings: list[str]' "summarize key behaviors" .
+rlmgrep --signature-json 'summary: str, levels: list[Literal["low","medium","high"]]' "summarize risk levels" .
 ```
 
 Notes:
@@ -40,12 +42,24 @@ Notes:
 - rlmgrep is grep-shaped output, but the match semantics are model-driven.
 - `--paths-from-stdin` treats stdin as newline-delimited file paths. Without it, piped stdin is treated as file content.
 - Hidden files and ignore files are respected by default. Use `--hidden` to include dotfiles, and `--no-ignore` to bypass `.gitignore`/`.rgignore`/`.ignore` (similar to rg).
-- rlmgrep asks for confirmation when more than 200 files would be loaded (use `-y/--yes` to skip). It aborts over 1000 files by default.
-  - `-y/--yes` only skips the confirmation prompt; it does not bypass the 1000-file abort cap.
+- rlmgrep asks for confirmation when more than 1000 files would be loaded (use `-y/--yes` to skip). It aborts over 5000 files by default.
+  - `-y/--yes` only skips the confirmation prompt; it does not bypass the 5000-file abort cap.
   - To run on larger repos, pre-filter with `rg -l ...`, or use `-g/--type` to narrow the file set.
 - You can include regex-style patterns inside a natural-language prompt, and the RLM may use Python `re` internally to approximate that logic, but results are not guaranteed to match `grep`/`rg` exactly.
 - Non-text inputs: PDFs are parsed, images can be described via LLMs (OpenAI/Anthropic/Gemini), and audio transcription is OpenAI-only.
+- MarkItDown is loaded lazily. Text-only runs skip it; non-text conversion is enabled only when needed.
 - OpenRouter: set `model` to `openrouter/...`, set `api_base` to `https://openrouter.ai/api/v1`, and provide `OPENROUTER_API_KEY` (or `api_key` in config).
+
+## Structured Output Signatures
+
+Use this when the caller wants machine-friendly output or custom report fields.
+
+- `--signature '<fields>'` prints sectioned markdown-like text for humans.
+- `--signature-json '<fields>'` prints one compact JSON object to stdout for piping/saving.
+- Provide output fields only (for example: `summary: str, findings: list[str]`). Do not include inputs or `->`.
+- Supported output types: `str`, `int`, `float`, `bool`, `list[T]`, `dict[str, T]`, `Literal[...]`.
+- JSON mapping: `str` -> string, `int/float` -> number, `bool` -> boolean, `list[T]` -> array, `dict[str, T]` -> object, `Literal[...]` -> scalar.
+- In `--signature-json` mode, progress/warnings still go to stderr.
 
 Example (best-effort regex semantics + extra context):
 
