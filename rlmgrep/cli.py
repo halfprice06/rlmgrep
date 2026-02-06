@@ -1,6 +1,8 @@
 from __future__ import annotations
 
 import argparse
+import contextlib
+import io
 import json
 import logging
 import os
@@ -26,7 +28,9 @@ from . import __version__
 from .config import ensure_default_config, load_config
 from .file_map import build_file_map
 from .ingest import (
+    AUDIO_EXTS,
     FileRecord,
+    IMAGE_EXTS,
     build_ignore_spec,
     collect_candidates,
     load_files,
@@ -407,6 +411,47 @@ def _split_list(values: list[str]) -> list[str]:
     return out
 
 
+_MARKITDOWN_HINT_EXTS = IMAGE_EXTS | AUDIO_EXTS | {
+    ".doc",
+    ".docx",
+    ".ppt",
+    ".pptx",
+    ".xls",
+    ".xlsx",
+    ".zip",
+    ".odt",
+    ".ods",
+    ".odp",
+    ".rtf",
+    ".epub",
+}
+
+
+def _looks_binary(path: Path, sample_size: int = 16384) -> bool:
+    try:
+        with path.open("rb") as f:
+            chunk = f.read(sample_size)
+    except Exception:
+        return False
+    return b"\x00" in chunk
+
+
+def _needs_markitdown(candidates: Iterable[Path], binary_as_text: bool) -> bool:
+    if binary_as_text:
+        return False
+
+    for fp in candidates:
+        suffix = fp.suffix.lower()
+        # PDFs are handled without markitdown.
+        if suffix == ".pdf":
+            continue
+        if suffix in _MARKITDOWN_HINT_EXTS:
+            return True
+        if _looks_binary(fp):
+            return True
+    return False
+
+
 def _as_bool(value) -> bool:
     if isinstance(value, bool):
         return value
@@ -416,10 +461,15 @@ def _as_bool(value) -> bool:
 
 
 def _build_markitdown(config: dict, warnings: list[str]):
+    stderr_buf = io.StringIO()
+    stdout_buf = io.StringIO()
     try:
-        from markitdown import MarkItDown  # type: ignore
-    except Exception:
-        warnings.append("markitdown not installed; non-text files may be skipped")
+        with contextlib.redirect_stderr(stderr_buf), contextlib.redirect_stdout(stdout_buf):
+            from markitdown import MarkItDown  # type: ignore
+    except Exception as exc:
+        warnings.append(
+            f"markitdown unavailable ({exc.__class__.__name__}: {exc}); non-text conversion disabled"
+        )
         return None, False, False, None
 
     enable_images = _as_bool(config.get("markitdown_enable_images"))
@@ -594,17 +644,16 @@ def main(argv: list[str] | None = None) -> int:
     for w in type_warnings:
         _warn(w)
 
+    markitdown = None
+    md_enable_images = False
+    md_enable_audio = False
+    audio_transcriber = None
     md_warnings: list[str] = []
-    markitdown, md_enable_images, md_enable_audio, audio_transcriber = _build_markitdown(
-        config, md_warnings
-    )
     md_max_concurrency = _parse_num(
         _pick(None, config, "markitdown_max_concurrency", 1), int
     )
     if md_max_concurrency is not None and md_max_concurrency <= 1:
         md_max_concurrency = None
-    for w in md_warnings:
-        _warn(w)
 
     input_paths: list[str] | None = None
     stdin_text: str | None = None
@@ -696,9 +745,17 @@ def main(argv: list[str] | None = None) -> int:
                 total=scanned or scan_count,
                 completed=scanned or scan_count,
                 description=f"Scanning files ({scanned or scan_count})",
-            )
+                )
             scan_progress.stop()
         candidate_count = len(candidates)
+
+        if _needs_markitdown(candidates, binary_as_text=args.binary_as_text):
+            markitdown, md_enable_images, md_enable_audio, audio_transcriber = _build_markitdown(
+                config, md_warnings
+            )
+            for w in md_warnings:
+                _warn(w)
+
         if hard_max is not None and candidate_count > hard_max:
             _warn(
                 f"{candidate_count} files to load (over {hard_max}); aborting"
