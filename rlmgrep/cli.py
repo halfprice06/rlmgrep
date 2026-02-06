@@ -890,6 +890,9 @@ def main(argv: list[str] | None = None) -> int:
 
     if signature_output is not None:
         payload = _to_json_compatible(signature_output)
+        # Keep machine output on stdout while adding visual separation in interactive terminals.
+        if sys.stderr.isatty() and sys.stdout.isatty():
+            print(file=sys.stderr, flush=True)
         if signature_format == "json":
             print(json.dumps(payload, ensure_ascii=False, separators=(",", ":")))
         else:
