@@ -1,17 +1,18 @@
 from __future__ import annotations
 
 import argparse
+import json
 import logging
 import os
 import shutil
 import subprocess
 import sys
 from pathlib import Path
+from typing import Any
 
 import dspy
-from rich import box
+from pydantic import BaseModel
 from rich.console import Console
-from rich.panel import Panel
 from rich.progress import (
     BarColumn,
     Progress,
@@ -31,7 +32,7 @@ from .ingest import (
     load_files,
     resolve_type_exts,
 )
-from .rlm import Match, build_lm, run_rlm
+from .rlm import Match, build_lm, run_rlm, run_rlm_with_signature
 from .render import render_matches
 
 
@@ -42,6 +43,10 @@ def _warn(msg: str) -> None:
 def _console() -> Console:
     use_color = sys.stderr.isatty() and not os.getenv("NO_COLOR")
     return Console(stderr=True, force_terminal=use_color, color_system="auto")
+
+
+def _section_header(title: str) -> str:
+    return f"===== {title} ====="
 
 
 class _RLMIterationHandler(logging.Handler):
@@ -66,14 +71,9 @@ class _RLMIterationHandler(logging.Handler):
         if self._title is None:
             return
         body = "\n".join(self._lines).strip() or " "
-        self._console.print(
-            Panel(
-                Text(body),
-                title=self._title,
-                border_style="blue",
-                box=box.ROUNDED,
-            )
-        )
+        self._console.print(_section_header(self._title), style="blue")
+        self._console.print(body)
+        self._console.print()
         self._title = None
         self._lines = []
 
@@ -88,14 +88,10 @@ def _setup_verbose_logging(console: Console) -> _RLMIterationHandler:
 
 
 def _print_answer(console: Console, answer: str) -> None:
-    text = Text(answer.strip())
-    panel = Panel(
-        text,
-        title="Answer",
-        border_style="cyan",
-        box=box.ROUNDED,
-    )
-    console.print(panel)
+    body = answer.strip() or "No answer"
+    console.print(_section_header("Answer"), style="cyan")
+    console.print(body)
+    console.print()
 
 
 def _print_matches(console: Console, lines: list[str], use_color: bool) -> None:
@@ -103,14 +99,43 @@ def _print_matches(console: Console, lines: list[str], use_color: bool) -> None:
     if not body:
         body = "No matches"
     text = Text.from_ansi(body) if use_color else Text(body)
-    console.print(
-        Panel(
-            text,
-            title="Matches",
-            border_style="cyan",
-            box=box.ROUNDED,
-        )
-    )
+    console.print(_section_header("Matches"), style="cyan")
+    console.print(text)
+    console.print()
+
+
+def _to_json_compatible(value: Any) -> Any:
+    if isinstance(value, BaseModel):
+        return _to_json_compatible(value.model_dump())
+    if isinstance(value, dict):
+        return {str(k): _to_json_compatible(v) for k, v in value.items()}
+    if isinstance(value, (list, tuple, set)):
+        return [_to_json_compatible(v) for v in value]
+    if isinstance(value, (str, int, float, bool)) or value is None:
+        return value
+    return str(value)
+
+
+def _format_scalar_md(value: Any) -> str:
+    if value is None:
+        return "null"
+    if isinstance(value, bool):
+        return "true" if value else "false"
+    return str(value)
+
+
+def _render_signature_markdown(payload: dict[str, Any]) -> str:
+    lines: list[str] = [_section_header("Signature Output"), ""]
+    for key, value in payload.items():
+        lines.append(f"----- {key} -----")
+        if isinstance(value, (str, int, float, bool)) or value is None:
+            lines.append(_format_scalar_md(value))
+        else:
+            lines.append(json.dumps(value, ensure_ascii=False, indent=2))
+        lines.append("")
+    if len(lines) == 2:
+        lines.extend(["No output fields returned.", ""])
+    return "\n".join(lines).rstrip()
 
 
 def _confirm_over_limit(count: int, threshold: int) -> bool:
@@ -185,6 +210,19 @@ def _parse_args(argv: list[str]) -> argparse.Namespace:
     )
     parser.add_argument("--answer", action="store_true", help="Print a narrative answer before grep output")
     parser.add_argument("--answer-only", action="store_true", help="Print only the narrative answer")
+    signature_group = parser.add_mutually_exclusive_group()
+    signature_group.add_argument(
+        "--signature",
+        type=str,
+        default=None,
+        help="Custom DSPy output signature fields (outputs only). Prints sectioned text.",
+    )
+    signature_group.add_argument(
+        "--signature-json",
+        type=str,
+        default=None,
+        help="Custom DSPy output signature fields (outputs only). Prints JSON.",
+    )
     parser.add_argument("-y", "--yes", action="store_true", help="Skip file count confirmation")
     parser.add_argument(
         "--paths-from-stdin",
@@ -522,8 +560,22 @@ def main(argv: list[str] | None = None) -> int:
     if not args.pattern:
         _warn("missing pattern")
         return 2
+
     if args.answer_only:
         args.answer = True
+
+    signature_value: str | None = None
+    signature_format: str | None = None
+    if args.signature is not None:
+        signature_value = args.signature
+        signature_format = "md"
+    elif args.signature_json is not None:
+        signature_value = args.signature_json
+        signature_format = "json"
+
+    if signature_value is not None and args.answer:
+        _warn("--signature/--signature-json cannot be combined with --answer or --answer-only")
+        return 2
 
     _, err = ensure_default_config()
     if err:
@@ -800,23 +852,49 @@ def main(argv: list[str] | None = None) -> int:
     if args.verbose:
         verbose_handler = _setup_verbose_logging(console)
 
+    signature_output: dict[str, Any] | None = None
     try:
-        proposed, answer = run_rlm(
-            directory=directory,
-            query=args.pattern,
-            file_map=file_map,
-            max_iterations=max_iterations,
-            max_llm_calls=max_llm_calls,
-            verbose=args.verbose,
-            sub_lm=sub_lm,
-            with_answer=args.answer,
-        )
+        if signature_value is None:
+            proposed, answer = run_rlm(
+                directory=directory,
+                query=args.pattern,
+                file_map=file_map,
+                max_iterations=max_iterations,
+                max_llm_calls=max_llm_calls,
+                verbose=args.verbose,
+                sub_lm=sub_lm,
+                with_answer=args.answer,
+            )
+        else:
+            signature_output = run_rlm_with_signature(
+                directory=directory,
+                query=args.pattern,
+                file_map=file_map,
+                output_signature=signature_value,
+                max_iterations=max_iterations,
+                max_llm_calls=max_llm_calls,
+                verbose=args.verbose,
+                sub_lm=sub_lm,
+            )
+            proposed = []
+            answer = None
+    except ValueError as exc:
+        _warn(str(exc))
+        return 2
     except Exception as exc:  # pragma: no cover - defensive
         _warn(f"RLM failure: {exc}")
         return 2
     finally:
         if verbose_handler is not None:
             verbose_handler.flush_panel()
+
+    if signature_output is not None:
+        payload = _to_json_compatible(signature_output)
+        if signature_format == "json":
+            print(json.dumps(payload, ensure_ascii=False, separators=(",", ":")))
+        else:
+            print(_render_signature_markdown(payload))
+        return 0
 
     verified, dropped = verify_matches(proposed, files)
     if dropped:

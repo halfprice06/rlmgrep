@@ -78,6 +78,8 @@ Common options:
 
 - `--answer` return a narrative answer before the grep output
 - `--answer-only` return only the narrative answer (no grep output)
+- `--signature "..."` custom DSPy output fields (outputs only), printed as sectioned text
+- `--signature-json "..."` custom DSPy output fields (outputs only), printed as JSON
 - `-C N` context lines before/after (grep-style)
 - `-A N` context lines after
 - `-B N` context lines before
@@ -112,6 +114,12 @@ cat README.md | rlmgrep --answer "What is this tool for and how is it used?"
 
 # Use rg/grep to find candidate files, then rlmgrep over that list
 rg -l "token" . | rlmgrep --paths-from-stdin --answer "What does this token control and where is it validated?"
+
+# Custom structured output (sectioned text)
+rlmgrep --signature 'summary: str, severities: list[Literal["low","medium","high"]], findings: list[dict[str,str]]' "Audit auth and summarize issues" .
+
+# Custom structured output (JSON)
+rlmgrep --signature-json 'summary: str, findings: list[dict[str,str]]' "Audit auth and summarize issues" .
 ```
 
 ## Input selection
@@ -136,6 +144,13 @@ rg -l "token" . | rlmgrep --paths-from-stdin --answer "What does this token cont
   - `0` = at least one match
   - `1` = no matches
   - `2` = usage/config/error
+
+Custom signature mode:
+- Use `--signature` or `--signature-json` with output fields only (for example: `summary: str, findings: list[str]`).
+- Inputs are fixed internally as `directory: dict, file_map: str, query: str`.
+- Supported output types: `str`, `int`, `float`, `bool`, `list[T]`, `dict[str, T]`, `Literal[...]`.
+- `--signature` emits sectioned text, `--signature-json` emits compact JSON.
+- In custom signature mode, successful execution returns exit code `0`.
 
 
 ## Regex-style queries (best effort)
@@ -211,4 +226,4 @@ Install it by copying the folder into your agent’s skills directory (for examp
 
 - Install locally: `pip install -e .` or `uv tool install .`
 - Run: `rlmgrep "query" .`
-- No test suite is configured yet.
+- Run tests: `python3.11 -m pytest`
