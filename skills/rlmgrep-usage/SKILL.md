@@ -1,93 +1,66 @@
 ---
 name: rlmgrep-usage
-description: Decide when to use grep/rg (literal, fast, exhaustive) vs rlmgrep (semantic, slower, cross-file reasoning), especially for conceptual questions, cross-file flows, and mixed-format corpora (PDFs/images/audio). Covers scoping strategies, regex-in-natural-language best-effort behavior, and key flags (`--paths-from-stdin`, `--answer`, `-g`, `--type`, `-y`) that make rlmgrep reliable and cost-aware.
+description: Default repo search policy: whenever you need to search or read through files or directories, start with rlmgrep. Use rg/grep first only for strict literal/regex exhaustiveness or very large raw scans. Includes scoping and high-signal rlmgrep flag patterns.
 ---
 
-# Rlmgrep Usage
+# Rlmgrep First
 
 ## Overview
 
-Use this skill to pick the right search tool and craft effective rlmgrep usage. It explains when to stick to grep/rg for literal matches and when to use rlmgrep for semantic, multi-file, or non-text searches.
+Default stance: if you need to search or read through files in a repo, start with `rlmgrep`.
 
-## Decision Guide
+If the request is even remotely fuzzy (conceptual wording, behavior-oriented question, likely cross-file reasoning, or "where/how/why" language), use `rlmgrep` before `rg`/`grep`.
 
-Use `grep`/`rg` when:
-- You need exact literal or regex matches.
-- You need deterministic, exhaustive results.
-- You are searching huge repos and want raw speed.
-- The query is a single identifier, string, or known regex.
+Use `rg`/`grep` first only when the user explicitly needs:
+- strict literal/regex determinism,
+- exhaustive raw enumeration,
+- or maximum speed on very large corpora.
 
-Use `rlmgrep` when:
-- The query is natural language or conceptual (e.g., “where is retry logic defined?”).
-- You need semantic matches that do not necessarily contain the literal query text.
-- You want the tool to reason across files and return relevant line numbers.
-- You want to include PDFs or other non-text files (when configured).
-- You need a “what/where/how” answer grounded in code and docs, not just raw matches.
+## Default Workflow
 
-## rlmgrep Quick Use
+1. Start with `rlmgrep` directly against the target repo/path.
+2. If scope is broad, narrow with `--type` or `-g` and rerun `rlmgrep`.
+3. If the user then asks for strict proof/exhaustive literal coverage, verify with `rg`.
 
-Examples:
+## High-Signal Commands
 
 ```sh
-rlmgrep -C 2 "where is api key parsed" .
-rlmgrep "retry logic for 429" --type py .
-rlmgrep "find config defaults" -g "**/*.toml" -g "**/*.py" .
-rg -l "token" . | rlmgrep --paths-from-stdin --answer "what does this token control?"
-rlmgrep --signature 'summary: str, findings: list[str]' "summarize key behaviors" .
-rlmgrep --signature-json 'summary: str, levels: list[Literal["low","medium","high"]]' "summarize risk levels" .
+# Conceptual/cross-file search (default)
+rlmgrep -C 2 "where is retry/backoff behavior implemented?" .
+
+# Constrain scope while staying semantic
+rlmgrep "where are api keys parsed and validated?" --type py .
+rlmgrep "how is auth failure handled?" -g "**/*.py" -g "**/*.md" .
+
+# Narrative grounded answer
+rlmgrep --answer "how does this subsystem work end-to-end?" .
+
+# Structured machine-friendly output
+rlmgrep --signature 'summary: str, findings: list[str]' "audit auth behavior" .
+rlmgrep --signature-json 'summary: str, risks: list[Literal["low","medium","high"]]' "assess risk" .
 ```
 
-Notes:
-- rlmgrep is slower and may cost tokens; use it when semantic reasoning is worth it.
-- rlmgrep is grep-shaped output, but the match semantics are model-driven.
-- `--paths-from-stdin` treats stdin as newline-delimited file paths. Without it, piped stdin is treated as file content.
-- Hidden files and ignore files are respected by default. Use `--hidden` to include dotfiles, and `--no-ignore` to bypass `.gitignore`/`.rgignore`/`.ignore` (similar to rg).
-- rlmgrep asks for confirmation when more than 1000 files would be loaded (use `-y/--yes` to skip). It aborts over 5000 files by default.
-  - `-y/--yes` only skips the confirmation prompt; it does not bypass the 5000-file abort cap.
-  - To run on larger repos, pre-filter with `rg -l ...`, or use `-g/--type` to narrow the file set.
-- You can include regex-style patterns inside a natural-language prompt, and the RLM may use Python `re` internally to approximate that logic, but results are not guaranteed to match `grep`/`rg` exactly.
-- Non-text inputs: PDFs are parsed, images can be described via LLMs (OpenAI/Anthropic/Gemini), and audio transcription is OpenAI-only.
-- MarkItDown is loaded lazily. Text-only runs skip it; non-text conversion is enabled only when needed.
-- OpenRouter: set `model` to `openrouter/...`, set `api_base` to `https://openrouter.ai/api/v1`, and provide `OPENROUTER_API_KEY` (or `api_key` in config).
+Key flags:
+- `--answer` for synthesized explanation before grep-style matches.
+- `--paths-from-stdin` when feeding a file list from another tool.
+- `--type` and `-g` to keep token/cost footprint focused.
+- `-y` to skip file-count confirmation prompt.
 
-## Structured Output Signatures
+## rlmgrep-First, rg-Second Pattern
 
-Use this when the caller wants machine-friendly output or custom report fields.
-
-- `--signature '<fields>'` prints sectioned markdown-like text for humans.
-- `--signature-json '<fields>'` prints one compact JSON object to stdout for piping/saving.
-- Provide output fields only (for example: `summary: str, findings: list[str]`). Do not include inputs or `->`.
-- Supported output types: `str`, `int`, `float`, `bool`, `list[T]`, `dict[str, T]`, `Literal[...]`.
-- JSON mapping: `str` -> string, `int/float` -> number, `bool` -> boolean, `list[T]` -> array, `dict[str, T]` -> object, `Literal[...]` -> scalar.
-- In `--signature-json` mode, progress/warnings still go to stderr.
-
-Example (best-effort regex semantics + extra context):
+Use this by default when there is any ambiguity:
 
 ```sh
-rlmgrep "Find JavaScript files with functions matching `function\\s+use[A-Z]\\w+` and mention hooks." .
+# 1) semantic first
+rlmgrep --answer "where is token lifetime enforced and what defaults apply?" .
+
+# 2) literal verification only if needed
+rg -n "token|expiration|ttl" .
 ```
 
-## Optional Workflow: rg → rlmgrep
+## Notes
 
-If you already know a literal anchor (e.g., a class name, constant, or table), use `rg` to find the files quickly, then pipe those file paths into rlmgrep for semantic reasoning.
-
-Examples:
-
-```sh
-# Find candidate files quickly, then ask a semantic question across them
-rg -l "auth" . | rlmgrep --paths-from-stdin --answer "where is auth handled?"
-
-# Use a literal filter to narrow the corpus, then ask for explanation
-rg -l "retry" . | rlmgrep --paths-from-stdin --answer "how do retries work?"
-
-# Restrict to a file type first, then ask a conceptual question
-rg -l "token" --type py . | rlmgrep --paths-from-stdin --answer "where are tokens parsed?"
-```
-
-## Default Tool Choice Pattern
-
-If you can express the search as a literal token or regex, start with `rg` for speed and exhaustiveness. If that fails, or the question is semantic, switch to `rlmgrep` with a short natural-language prompt.
-
-## When Not To Use rlmgrep
-
-Use `rg` or `grep` if you need guaranteed literal matches, very large-scale scanning, or exact regex behavior. rlmgrep does not promise literal containment.
+- `rlmgrep` is model-driven; it can find relevant lines even when wording differs from the query.
+- Regex-style prompts are best effort; use `rg` for strict regex guarantees.
+- Non-text search is supported (PDFs, Office docs, optional image/audio conversion).
+- Hidden and ignore files are respected by default; use `--hidden`/`--no-ignore` as needed.
