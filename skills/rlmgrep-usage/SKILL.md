@@ -1,6 +1,6 @@
 ---
 name: rlmgrep-usage
-description: Default repo search policy: whenever you need to search or read through files or directories, start with rlmgrep. Use rg/grep first only for strict literal/regex exhaustiveness or very large raw scans. Includes scoping and high-signal rlmgrep flag patterns.
+description: "Default repo search policy: whenever you need to search or read through files or directories, start with rlmgrep. Use rg/grep first only for strict literal/regex exhaustiveness or very large raw scans. Includes scoping and high-signal rlmgrep flag patterns."
 ---
 
 # Rlmgrep First
