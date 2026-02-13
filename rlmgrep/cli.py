@@ -654,6 +654,11 @@ def main(argv: list[str] | None = None) -> int:
     )
     if md_max_concurrency is not None and md_max_concurrency <= 1:
         md_max_concurrency = None
+    load_concurrency = _parse_num(
+        _pick(None, config, "load_concurrency", 8), int
+    )
+    if load_concurrency is not None and load_concurrency <= 1:
+        load_concurrency = None
 
     input_paths: list[str] | None = None
     stdin_text: str | None = None
@@ -677,7 +682,7 @@ def main(argv: list[str] | None = None) -> int:
     if input_paths is None:
         text = stdin_text or ""
         files = {
-            "<stdin>": FileRecord(path="<stdin>", text=text, lines=text.split("\n"))
+            "<stdin>": FileRecord(path="<stdin>", text=text)
         }
         warnings: list[str] = []
     else:
@@ -810,7 +815,7 @@ def main(argv: list[str] | None = None) -> int:
             enable_audio=md_enable_audio,
             audio_transcriber=audio_transcriber,
             binary_as_text=args.binary_as_text,
-            max_concurrency=md_max_concurrency,
+            max_concurrency=load_concurrency or md_max_concurrency,
             progress=_load_update if load_progress is not None else None,
         )
         if load_progress is not None and load_task is not None:

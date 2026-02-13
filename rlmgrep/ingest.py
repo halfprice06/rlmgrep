@@ -15,8 +15,16 @@ from pypdf import PdfReader
 class FileRecord:
     path: str
     text: str
-    lines: list[str]
     page_map: list[int] | None = None
+
+    def __post_init__(self) -> None:
+        self._lines: list[str] | None = None
+
+    @property
+    def lines(self) -> list[str]:
+        if self._lines is None:
+            self._lines = self.text.split("\n")
+        return self._lines
 
 
 def _normalize_newlines(text: str) -> str:
@@ -24,8 +32,8 @@ def _normalize_newlines(text: str) -> str:
 
 
 def _is_binary(data: bytes) -> bool:
-    # Heuristic: presence of NUL byte.
-    return b"\x00" in data
+    # Heuristic: presence of NUL byte in the first 8 KB.
+    return b"\x00" in data[:8192]
 
 
 def _read_pdf(path: Path) -> tuple[str, list[int]]:
@@ -359,47 +367,114 @@ def collect_candidates(
     ignore_root: Path | None = None,
     scan_progress: Callable[[int], None] | None = None,
 ) -> tuple[list[Path], int]:
-    files = collect_files(paths, recursive=recursive, progress=scan_progress)
-    scanned = len(files)
+    """Collect candidate files using a single os.walk pass with directory pruning."""
     explicit_files: set[Path] = set()
+    dir_roots: list[Path] = []
+    candidates: list[Path] = []
+    scanned = 0
+
     ignore_root_resolved: Path | None = None
     if ignore_root is not None:
         try:
             ignore_root_resolved = ignore_root.resolve()
         except Exception:
             ignore_root_resolved = ignore_root
+
     for raw in paths:
         p = Path(raw)
-        if p.exists() and p.is_file():
+        if not p.exists():
+            continue
+        if p.is_file():
             explicit_files.add(p.resolve())
-    candidates: list[Path] = []
-    for fp in files:
-        fp_resolved = fp.resolve()
-        is_explicit = fp_resolved in explicit_files
-        if not include_hidden and not is_explicit and _is_hidden_path(fp):
-            continue
+            candidates.append(p)
+            scanned += 1
+            if scan_progress is not None:
+                scan_progress(scanned)
+        elif p.is_dir():
+            if recursive:
+                dir_roots.append(p)
+            # Non-recursive directories are skipped (matches old behaviour).
 
-        try:
-            key = fp.relative_to(cwd).as_posix()
-        except ValueError:
-            key = fp.as_posix()
+    for root_dir in dir_roots:
+        for dirpath_str, dirnames, filenames in os.walk(root_dir):
+            # Always prune .git directories.
+            if ".git" in dirnames:
+                dirnames.remove(".git")
 
-        if ignore_spec is not None and ignore_root_resolved is not None and not is_explicit:
-            try:
-                rel = fp_resolved.relative_to(ignore_root_resolved).as_posix()
-            except ValueError:
-                rel = None
-            if rel and ignore_spec.match_file(rel):
-                continue
+            # Prune hidden directories early so we never descend into them.
+            if not include_hidden:
+                dirnames[:] = [d for d in dirnames if not d.startswith(".")]
 
-        if include_globs and not _matches_globs(key, include_globs):
-            continue
+            # Prune ignored directories so we skip entire subtrees
+            # (e.g. node_modules, build/).
+            if ignore_spec is not None and ignore_root_resolved is not None:
+                kept: list[str] = []
+                for d in dirnames:
+                    dp = os.path.join(dirpath_str, d)
+                    try:
+                        rel = os.path.relpath(
+                            os.path.realpath(dp), ignore_root_resolved
+                        ).replace(os.sep, "/")
+                    except ValueError:
+                        kept.append(d)
+                        continue
+                    if ignore_spec.match_file(rel) or ignore_spec.match_file(
+                        rel + "/"
+                    ):
+                        continue
+                    kept.append(d)
+                dirnames[:] = kept
 
-        if type_exts and fp.suffix.lower() not in type_exts:
-            continue
+            for name in filenames:
+                scanned += 1
+                if scan_progress is not None:
+                    scan_progress(scanned)
 
-        candidates.append(fp)
+                fp = Path(dirpath_str) / name
+
+                # Filter: hidden files.
+                if not include_hidden and _is_hidden_path(fp):
+                    continue
+
+                # Filter: ignore spec.
+                if (
+                    ignore_spec is not None
+                    and ignore_root_resolved is not None
+                ):
+                    try:
+                        rel = (
+                            fp.resolve()
+                            .relative_to(ignore_root_resolved)
+                            .as_posix()
+                        )
+                    except ValueError:
+                        rel = None
+                    if rel and ignore_spec.match_file(rel):
+                        continue
+
+                # Filter: type extensions.
+                if type_exts and os.path.splitext(name)[1].lower() not in type_exts:
+                    continue
+
+                # Filter: glob patterns.
+                if include_globs:
+                    try:
+                        key = fp.relative_to(cwd).as_posix()
+                    except ValueError:
+                        key = fp.as_posix()
+                    if not _matches_globs(key, include_globs):
+                        continue
+
+                candidates.append(fp)
+
     return candidates, scanned
+
+
+_SILENT_ERRORS = frozenset({
+    "binary file",
+    "image conversion disabled",
+    "audio conversion disabled",
+})
 
 
 def load_files(
@@ -420,13 +495,14 @@ def load_files(
 
     candidate_list = list(candidates)
     total = len(candidate_list)
+
     def _key_for_path(fp: Path) -> str:
         try:
             return fp.relative_to(cwd).as_posix()
         except ValueError:
             return fp.as_posix()
 
-    def _load_one(fp: Path) -> tuple[str, str | None, list[str] | None, list[int] | None, str | None]:
+    def _load_one(fp: Path) -> tuple[str, str | None, list[int] | None, str | None]:
         text, page_map, err = _load_file(
             fp,
             markitdown=markitdown,
@@ -436,11 +512,11 @@ def load_files(
             binary_as_text=binary_as_text,
         )
         if text is None or err is not None:
-            return _key_for_path(fp), None, None, None, err
-        lines = text.split("\n")
-        if page_map is not None and len(page_map) != len(lines):
+            return _key_for_path(fp), None, None, err
+        # Validate page_map length without splitting lines.
+        if page_map is not None and len(page_map) != text.count("\n") + 1:
             page_map = None
-        return _key_for_path(fp), text, lines, page_map, None
+        return _key_for_path(fp), text, page_map, None
 
     for fp in candidate_list:
         suffix = fp.suffix.lower()
@@ -452,59 +528,33 @@ def load_files(
                 if not _sidecar_path(fp).is_file():
                     audio_convert_count += 1
 
-    use_concurrency = max_concurrency is not None and max_concurrency > 1
-    if use_concurrency:
-        from concurrent.futures import ThreadPoolExecutor, as_completed
+    # Always use a thread pool for parallel I/O.  For plain-text repos the
+    # default of 8 workers overlaps many small reads; for MarkItDown heavy
+    # workloads the caller can raise/lower via config.
+    workers = max_concurrency if max_concurrency is not None and max_concurrency > 1 else 8
 
-        with ThreadPoolExecutor(max_workers=max_concurrency) as executor:
-            future_map = {
-                executor.submit(_load_one, fp): fp for fp in candidate_list
-            }
-            completed = 0
-            for future in as_completed(future_map):
-                fp = future_map[future]
-                key, text, lines, page_map, err = future.result()
-                if err is not None:
-                    silent_errors = {
-                        "binary file",
-                        "image conversion disabled",
-                        "audio conversion disabled",
-                    }
-                    if err not in silent_errors and "No converter attempted a conversion" not in err:
-                        warnings.append(f"skip {fp}: {err}")
-                elif text is None or lines is None:
-                    warnings.append(f"skip {fp}: unreadable")
-                else:
-                    records[key] = FileRecord(
-                        path=key, text=text, lines=lines, page_map=page_map
-                    )
-                completed += 1
-                if progress is not None:
-                    progress(completed, total)
-    else:
-        for idx, fp in enumerate(candidate_list, start=1):
-            key, text, lines, page_map, err = _load_one(fp)
+    from concurrent.futures import ThreadPoolExecutor, as_completed
+
+    with ThreadPoolExecutor(max_workers=workers) as executor:
+        future_map = {
+            executor.submit(_load_one, fp): fp for fp in candidate_list
+        }
+        completed = 0
+        for future in as_completed(future_map):
+            fp = future_map[future]
+            key, text, page_map, err = future.result()
             if err is not None:
-                silent_errors = {
-                    "binary file",
-                    "image conversion disabled",
-                    "audio conversion disabled",
-                }
-                if err not in silent_errors and "No converter attempted a conversion" not in err:
+                if err not in _SILENT_ERRORS and "No converter attempted a conversion" not in err:
                     warnings.append(f"skip {fp}: {err}")
-                if progress is not None:
-                    progress(idx, total)
-                continue
-            if text is None or lines is None:
+            elif text is None:
                 warnings.append(f"skip {fp}: unreadable")
-                if progress is not None:
-                    progress(idx, total)
-                continue
-            records[key] = FileRecord(
-                path=key, text=text, lines=lines, page_map=page_map
-            )
+            else:
+                records[key] = FileRecord(
+                    path=key, text=text, page_map=page_map
+                )
+            completed += 1
             if progress is not None:
-                progress(idx, total)
+                progress(completed, total)
 
     if image_convert_count > 5:
         warnings.append(
