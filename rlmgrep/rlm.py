@@ -14,22 +14,29 @@ class Match(BaseModel):
     line: int
 
 
+_BASE_INSTRUCTIONS = """\
+You are the search engine for rlmgrep, a grep-shaped CLI for coding agents.
+Inputs include a directory mapping of files (path-to-text) and an ASCII file
+map. Your output must be grep-printable matches as
+(path, line) pairs that point to real lines in the provided texts.
+The query may be natural language or a short pattern; interpret it freely to
+find relevant lines. Return all relevant matches you can find, avoid duplicates,
+and only use exact paths from the directory keys.
+Always read the ASCII file map first to orient yourself to the available paths.
+Do not wrap code in backticks; only raw Python.
+Do not import pandas or numpy; use built-ins only.
+
+Files like "photo.jpg.md" or "audio.mp3.md" are LLM descriptions/transcriptions \
+of images/audio that were originally in the directory but have been converted to \
+md to make them searchable by you."""
+
+_ANSWER_EXTRA = """
+
+In this mode you are also responsible for generating a narrative answer to the \
+query based on the provided files."""
+
+
 class RLMGrepSignature(dspy.Signature):
-    """
-    You are the search engine for rlmgrep, a grep-shaped CLI for coding agents.
-    Inputs include a directory mapping of files (path-to-text), an ASCII file
-    map, and a user query string. Your output must be grep-printable matches as
-    (path, line) pairs that point to real lines in the provided texts.
-    The query may be natural language or a short pattern; interpret it freely to
-    find relevant lines. Return all relevant matches you can find, avoid duplicates,
-    and only use exact paths from the directory keys.
-    Always read the ASCII file map first to orient yourself to the available paths.
-    Do not wrap code in backticks; only raw Python.
-    Do not import pandas or numpy; use built-ins only.
-
-    Files like "photo.jpg.md" or "audio.mp3.md" are LLM descriptions/transcriptions of images/audio that were originally in the directory but have been converted to md to make them searchable by you. 
-    """
-
     directory: dict = dspy.InputField(
         desc=(
             "Mapping from relative path to full file text. Keys are the only valid paths. "
@@ -40,9 +47,6 @@ class RLMGrepSignature(dspy.Signature):
         desc=(
             "ASCII tree of directory keys for orientation. Read this first."
         )
-    )
-    query: str = dspy.InputField(
-        desc="User query to find relevant lines. Interpret freely."
     )
 
     matches: list[Match] = dspy.OutputField(
@@ -55,24 +59,6 @@ class RLMGrepSignature(dspy.Signature):
 
 
 class RLMGrepAnswerSignature(dspy.Signature):
-    """
-    You are the search engine for rlmgrep, a grep-shaped CLI for coding agents.
-    Inputs include a directory mapping of files (path-to-text), an ASCII file
-    map, and a user query string. Your output must be grep-printable matches as
-    (path, line) pairs that point to real lines in the provided texts.
-    The query may be natural language or a short pattern; interpret it freely to
-    find relevant lines. Return all relevant matches you can find, avoid duplicates,
-    and only use exact paths from the directory keys.
-    Always read the ASCII file map first to orient yourself to the available paths.
-    Do not wrap code in backticks; only raw Python.
-    Do not import pandas or numpy; use built-ins only.
-
-    In this mode you are also responsible for generating a narrative answer to the query based on the provided files.
-
-    Files like "photo.jpg.md" or "audio.mp3.md" are LLM descriptions/transcriptions of images/audio that were originally in the directory but have been converted to md to make them searchable by you.
-
-    """
-
     directory: dict = dspy.InputField(
         desc=(
             "Mapping from relative path to full file text. Keys are the only valid paths. "
@@ -81,9 +67,6 @@ class RLMGrepAnswerSignature(dspy.Signature):
     )
     file_map: str = dspy.InputField(
         desc=("ASCII tree of directory keys for orientation. Read this first.")
-    )
-    query: str = dspy.InputField(
-        desc="User query to find relevant lines. Interpret freely."
     )
 
     answer: str = dspy.OutputField(
@@ -98,11 +81,20 @@ class RLMGrepAnswerSignature(dspy.Signature):
     )
 
 
-_CUSTOM_SIGNATURE_PREFIX = "directory: dict, file_map: str, query: str -> "
-_CUSTOM_SIGNATURE_INSTRUCTIONS = """
+def _with_query(signature: type[dspy.Signature], query: str, *, with_answer: bool = False) -> type[dspy.Signature]:
+    """Bake the user query into the signature instructions."""
+    instructions = _BASE_INSTRUCTIONS
+    if with_answer:
+        instructions += _ANSWER_EXTRA
+    instructions += f"\n\nUser query: {query}"
+    return signature.with_instructions(instructions)
+
+
+_CUSTOM_SIGNATURE_PREFIX = "directory: dict, file_map: str -> "
+_CUSTOM_SIGNATURE_INSTRUCTIONS = """\
 You are the search engine for rlmgrep, a grep-shaped CLI for coding agents.
-Inputs include a directory mapping of files (path-to-text), an ASCII file
-map, and a user query string.
+Inputs include a directory mapping of files (path-to-text) and an ASCII file
+map.
 The query may be natural language or a short pattern; interpret it freely to
 extract the requested output fields from the provided files.
 Always read the ASCII file map first to orient yourself to the available paths.
@@ -110,10 +102,11 @@ Only use exact paths from the directory keys when paths are requested.
 Do not wrap code in backticks; only raw Python.
 Do not import pandas or numpy; use built-ins only.
 
-Files like "photo.jpg.md" or "audio.mp3.md" are LLM descriptions/transcriptions of images/audio that were originally in the directory but have been converted to md to make them searchable by you.
+Files like "photo.jpg.md" or "audio.mp3.md" are LLM descriptions/transcriptions \
+of images/audio that were originally in the directory but have been converted to \
+md to make them searchable by you.
 
-Return all declared output fields and ensure every value is JSON-compatible.
-"""
+Return all declared output fields and ensure every value is JSON-compatible."""
 
 
 def _is_supported_signature_type(annotation: Any) -> bool:
@@ -152,7 +145,7 @@ def _is_supported_signature_type(annotation: Any) -> bool:
     return False
 
 
-def build_custom_signature(output_signature: str) -> type[dspy.Signature]:
+def build_custom_signature(output_signature: str, query: str) -> type[dspy.Signature]:
     if "->" in output_signature:
         raise ValueError("--signature accepts output fields only")
 
@@ -174,7 +167,8 @@ def build_custom_signature(output_signature: str) -> type[dspy.Signature]:
                 "Supported types: str, int, float, bool, list[T], dict[str, T], Literal[...]"
             )
 
-    return signature.with_instructions(_CUSTOM_SIGNATURE_INSTRUCTIONS)
+    instructions = _CUSTOM_SIGNATURE_INSTRUCTIONS + f"\n\nUser query: {query}"
+    return signature.with_instructions(instructions)
 
 
 def build_lm(
@@ -228,12 +222,13 @@ def run_rlm(
     workdir.mkdir(parents=True, exist_ok=True)
     interpreter = RLMGrepInterpreter(workdir=workdir)
 
-    signature = RLMGrepAnswerSignature if with_answer else RLMGrepSignature
+    base = RLMGrepAnswerSignature if with_answer else RLMGrepSignature
+    signature = _with_query(base, query, with_answer=with_answer)
     rlm = dspy.RLM(signature, sub_lm=sub_lm, interpreter=interpreter, **kwargs)
 
     try:
         result = rlm(
-            directory=directory, file_map=file_map, query=query
+            directory=directory, file_map=file_map
         )
     finally:
         interpreter.shutdown()
@@ -263,11 +258,11 @@ def run_rlm_with_signature(
     workdir.mkdir(parents=True, exist_ok=True)
     interpreter = RLMGrepInterpreter(workdir=workdir)
 
-    signature = build_custom_signature(output_signature)
+    signature = build_custom_signature(output_signature, query)
     rlm = dspy.RLM(signature, sub_lm=sub_lm, interpreter=interpreter, **kwargs)
 
     try:
-        result = rlm(directory=directory, file_map=file_map, query=query)
+        result = rlm(directory=directory, file_map=file_map)
     finally:
         interpreter.shutdown()
 

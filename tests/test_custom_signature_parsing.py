@@ -32,11 +32,12 @@ def test_build_custom_signature_accepts_supported_types(
     output_signature: str,
     expected_fields: list[str],
 ) -> None:
-    signature = build_custom_signature(output_signature)
+    signature = build_custom_signature(output_signature, "test query")
 
-    assert list(signature.input_fields.keys()) == ["directory", "file_map", "query"]
+    assert list(signature.input_fields.keys()) == ["directory", "file_map"]
     assert list(signature.output_fields.keys()) == expected_fields
     assert "JSON-compatible" in signature.instructions
+    assert "User query: test query" in signature.instructions
 
 
 @pytest.mark.parametrize(
@@ -61,5 +62,5 @@ def test_build_custom_signature_rejects_unsupported_or_invalid_types(
     expected_error: str,
 ) -> None:
     with pytest.raises(ValueError, match=expected_error):
-        build_custom_signature(output_signature)
+        build_custom_signature(output_signature, "test query")
 
